@@ -21,9 +21,10 @@ update cadence matters (see Preferences below).
 Git history + PR descriptions carry everything else; don't duplicate what a
 commit message already says.
 
-_Deliberately not used here_ (they came with the template this file was adapted
-from; add them only when there's a real reason): `PLAN.md`, `STYLE_GUIDE.md`,
-`humantest.md`, `Status_update.md`.
+_Placeholder stubs_ (scaffolded, mostly skeletons — flesh out as the project
+needs them): `PLAN.md` (phases + open decisions), `STYLE_GUIDE.md` (the tool's
+visual tokens — colors, type), `Status_update.md` (per-session build log,
+newest first), `humantest.md` (user-testing feedback ledger).
 
 ## Preferences
 
