@@ -85,10 +85,13 @@ against the ~245 ft/day saved on sampling.
   narrative was ambiguous (e.g. inoculate-bioreactor → 50L seed; harvest → 500L
   + 10-capsule skid + 1000 kg collection tank). Correct these in
   `compute_walking_distance.py`'s `activities()` if the real targets differ.
-- **Straight-line distances**, centroid to centroid. The room is fairly open so
-  this is a good first approximation; obstacle-aware routing can be layered on
-  later if it changes which layout wins (it is very unlikely to, given the
-  size of the gap).
+- **Straight-line distances**, centroid to centroid, in this document and in
+  `compute_walking_distance.py`. The room is fairly open so this is a good first
+  approximation. The **interactive layouts (`layouts/*.html`) now additionally
+  offer obstacle-aware routing** (paths walk *around* equipment), which reads
+  higher in absolute terms — roughly **v2 ≈ 623 ft/day and v3 ≈ 213 ft/day** —
+  but widens rather than narrows the gap (v3 is ~66% less walking than v2 when
+  routed, vs. 57% straight-line), so the conclusion is unchanged.
 - **Concurrency:** daily sampling is modeled for all three reactor scales
   because up to 3 runs can be concurrent. If in practice a run scales up
   sequentially (50L → 200L → 500L) rather than three reactors running at once,
