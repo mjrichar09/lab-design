@@ -18,8 +18,13 @@ related process steps.
 
 ## 2. Improve equipment footprint accuracy
 
-- [ ] Replace estimated dimensions with manufacturer spec-sheet footprints
-      (W x D, plus service/access clearance) for each item, especially:
+- [~] Replace estimated dimensions with manufacturer spec-sheet footprints
+      (W x D, plus service/access clearance) for each item. **Research draft
+      started in `workflows/equipment_footprints.md`** — found cited dims for
+      Vi-CELL BLU, Nova FLEX2, and BIOSTAT STR 500 (vessel + control tower;
+      the current 7×7.5 box is ~2× the true hardware footprint). Still needs
+      vendor spec sheets for ATF 6, Alfa Laval centrifuge, Millipore skids,
+      200L/50L, scales, rockers — and confirmation before applying to layouts:
   - Sartorius BIOSTAT STR 500L + control tower
   - 200L / 50L bioreactors
   - ATF 6
@@ -40,9 +45,12 @@ related process steps.
       prep, single-use bag storage/staging, waste carts, PPE/gowning area,
       documentation/QA station, additional data stations near each
       bioreactor.
-- [ ] Confirm the osmometer and sample-prep cart mentioned in the design
+- [~] Confirm the osmometer and sample-prep cart mentioned in the design
       notes (assigned to "Island 3") are actually represented in the item
-      list.
+      list. Neither is currently a separate station. **Likely the "osmometer"
+      is the Nova FLEX2's optional osmometer module** (see
+      `equipment_footprints.md`) rather than a standalone unit — confirm before
+      adding one. Sample-prep cart still needs to be added if it's real.
 - [ ] Review RM 34166 (adjacent analytical storage) contents to see if
       anything there should move into or interact with the working area.
 
@@ -62,8 +70,11 @@ related process steps.
       to minimize them. Produced `layouts/upstream_lab_layout_v3.html`
       (~57% less walking, same footprint). **Pending user confirmation of
       assumptions** (media fridge, per-trip bioreactor targets).
-- [ ] Add a dedicated media refrigerator to the prep cluster (referenced by
-      3 workflows, currently proxied by the freezer) and re-run the analysis.
+- [x] Add a dedicated media refrigerator to the prep cluster (referenced by
+      3 workflows, previously proxied by the freezer) and re-run the analysis.
+      Added `fridge` station to both layouts; passage/inoculation activities
+      now route to it; analysis + station reference updated (straight-line
+      v2 404 / v3 183 ft/day).
 - [ ] Confirm which specific bioreactor/rocker/skid each activity targets,
       then re-run `compute_walking_distance.py`.
 - [ ] Check aisle widths meet ergonomic/code minimums for cart and personnel
@@ -83,22 +94,19 @@ related process steps.
 
 ## 5. Layout tool / editor improvements
 
-- [ ] Make equipment rotatable. A ↻ button already swaps width/height (90°
-      steps); extend to free rotation at arbitrary angles (or at least
-      45° increments) with the footprint and label rotating too, so
-      angled/island equipment can be represented accurately.
-- [ ] Lock size by default to prevent accidental resize while dragging. The
-      corner resize handle is too easy to grab mid-move — separate "move" from
-      "resize" (e.g. resize only via an explicit toggle/handle or the sidebar
-      W×H fields), so dragging never changes dimensions unintentionally.
-      Keep an intentional way to edit size on purpose.
-- [ ] Savable layouts. Let the user save the current arrangement under a name
-      and keep several, shown in a block/list with a dropdown (or set of
-      buttons) to activate/switch between them without losing the others —
-      so alternatives (e.g. current vs. optimized vs. process-flow) can be
-      compared in one file. Consider persisting to browser localStorage so
-      saved layouts survive a reload, plus export/import to move them between
-      copies of the file.
+- [x] Make equipment rotatable. The ↻ button now rotates in 45° steps (stored
+      as `rot`, applied via CSS transform; label/dim-tag counter-rotate to stay
+      readable). Obstacle routing uses the rotated bounding box. *Follow-up:
+      exact-polygon (non-AABB) collision for rotated boxes if the AABB
+      approximation proves too conservative at 45°.*
+- [x] Lock size by default to prevent accidental resize while dragging. A
+      "Lock sizes" toggle (on by default) hides the corner resize handle so
+      dragging never resizes; sizes are still editable on purpose via the
+      sidebar W×H fields (or by unchecking the toggle).
+- [x] Savable layouts. Sidebar "Saved layouts" box: name and save the current
+      arrangement, keep several, switch via a dropdown + Activate, update/delete,
+      and export/import as JSON. Persists to localStorage (with in-session
+      fallback if storage is blocked).
 
 ## 6. Sign-off
 

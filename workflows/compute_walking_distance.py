@@ -27,16 +27,16 @@ RUNS_PER_DAY = RUNS_PER_MONTH / 30.4
 
 # --- activities: (ordered station sequence, trips_per_day, people_per_trip) ---
 # Sequences are built from the free-text narratives in activities_template.csv.
-# NOTE: 'freezer' is a proxy for a media refrigerator that doesn't exist as a
-# station yet; bioreactor/rocker targets are assumed where the narrative is
+# 'fridge' is the dedicated media refrigerator (added to the layouts in the prep
+# cluster). NOTE: bioreactor/rocker targets are assumed where the narrative is
 # ambiguous. Adjust here as the workflow data is refined.
 def activities():
     a = {}
     for br in ['sartorius500', '200L-a', '50L-a']:          # daily sampling, per active reactor
         a[f'daily_sampling[{br}]'] = ([br, 'islandA', 'datastation', br], 2.0, 1)
     a['harvest_to_centrifuge'] = (['sartorius500', 'harvest10', 'scale1000', 'centrifuge'], RUNS_PER_DAY, 2)
-    a['passage_shake_flask']   = (['incubator', 'freezer', 'bsc', 'islandA', 'datastation', 'bsc', 'incubator', 'freezer'], 2/7, 1)
-    a['inoculate_rocker']      = (['incubator', 'freezer', 'bsc', 'islandA', 'datastation', 'bsc', 'rocker1'], RUNS_PER_DAY, 1)
+    a['passage_shake_flask']   = (['incubator', 'fridge', 'bsc', 'islandA', 'datastation', 'bsc', 'incubator', 'fridge'], 2/7, 1)
+    a['inoculate_rocker']      = (['incubator', 'fridge', 'bsc', 'islandA', 'datastation', 'bsc', 'rocker1'], RUNS_PER_DAY, 1)
     a['inoculate_bioreactor']  = (['rocker1', 'islandA', 'datastation', '50L-a'], RUNS_PER_DAY, 2)
     return a
 

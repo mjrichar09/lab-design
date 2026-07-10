@@ -427,6 +427,15 @@
   #bgSvg{position:absolute;top:0;left:0;}
   #equipLayer{position:absolute;top:0;left:0;}
   #pathLayer{position:absolute;top:0;pointer-events:none;z-index:4;overflow:visible;}
+  .lockToggle{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink);cursor:pointer;margin-top:2px;}
+  .lockToggle input{cursor:pointer;margin:0;}
+  .savebox{border:1px solid var(--line);border-radius:5px;padding:8px 9px;margin:8px 0 4px;background:#fff;}
+  .savebox .sb-head{font-size:11px;font-weight:600;margin-bottom:6px;}
+  .savebox .sb-row{display:flex;gap:5px;margin-bottom:5px;flex-wrap:wrap;}
+  .savebox select,.savebox input[type=text]{flex:1;min-width:90px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:4px;border:1px solid var(--line);border-radius:4px;background:#fff;}
+  .savebox button{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 7px;border:1px solid var(--ink);background:#fff;border-radius:4px;cursor:pointer;}
+  .savebox button:hover{background:var(--ink);color:#fff;}
+  .sizes-locked .resize-handle{display:none;}
   .equip{
     position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:5px;
     cursor:grab;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,0.15);
@@ -483,6 +492,14 @@
       <button onclick="location.reload()">Reset layout</button>
       <button onclick="window.print()">Print / PDF</button>
       <button onclick="exportLayout()" style="background:var(--blue);color:#fff;border-color:var(--blue);">⬇ Download my edited layout</button>
+      <label class="lockToggle"><input type="checkbox" id="lockSizes" checked> Lock sizes (drag won't resize)</label>
+    </div>
+
+    <div class="savebox">
+      <div class="sb-head">Saved layouts</div>
+      <div class="sb-row"><select id="layoutSelect"></select><button id="layoutActivate">Activate</button></div>
+      <div class="sb-row"><input id="layoutName" type="text" placeholder="name this layout…"><button id="layoutSave">Save current</button></div>
+      <div class="sb-row"><button id="layoutUpdate">Update selected</button><button id="layoutDelete">Delete</button><button id="layoutExport">Export</button><button id="layoutImport">Import</button><input id="layoutFile" type="file" accept="application/json" style="display:none"></div>
     </div>
 
     <h2>Equipment &amp; Support Items</h2>
@@ -1365,13 +1382,24 @@ let items = [
     "y": 4,
     "color": "blue",
     "icon": "default"
+  },
+  {
+    "id": "fridge",
+    "name": "Media refrigerator",
+    "w": 2.5,
+    "h": 3,
+    "x": 4,
+    "y": 28.5,
+    "color": "slate",
+    "icon": "freezer"
   }
 ];
 
-let selectedId=null, dragState=null, resizeState=null;
+let selectedId=null, dragState=null, resizeState=null, sizeLocked=true;
 
 function renderRoom(){
   equipLayer.innerHTML='';
+  equipLayer.classList.toggle('sizes-locked', sizeLocked);
   items.forEach(it=>{
     const el=document.createElement('div');
     el.className='equip'+(it.id===selectedId?' selected':'');
@@ -1379,8 +1407,10 @@ function renderRoom(){
     el.style.width=ft(it.w)+'px'; el.style.height=ft(it.h)+'px';
     el.style.background=FILLS[it.color]||'#eee';
     el.style.borderColor=COLORS[it.color]||'#333';
+    const rot=it.rot||0; if(rot) el.style.transform='rotate('+rot+'deg)';
     el.dataset.id=it.id;
     el.innerHTML=`<div class="lbl">${it.name}</div>${iconSVG(it.icon)}<div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
+    if(rot){ const l=el.querySelector('.lbl'); if(l) l.style.transform='rotate('+(-rot)+'deg)'; const d=el.querySelector('.dimtag'); if(d) d.style.transform='rotate('+(-rot)+'deg)'; }
     el.addEventListener('mousedown',(e)=>startDrag(e,it));
     el.querySelector('.resize-handle').addEventListener('mousedown',(e)=>{e.stopPropagation();startResize(e,it);});
     equipLayer.appendChild(el);
@@ -1409,6 +1439,7 @@ function onDrag(e){
 function endDrag(){dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);}
 
 function startResize(e,it){
+  if(sizeLocked) return;
   e.preventDefault(); selectedId=it.id;
   resizeState={it,startX:e.clientX,startY:e.clientY,origW:it.w,origH:it.h};
   document.addEventListener('mousemove',onResize); document.addEventListener('mouseup',endResize);
@@ -1440,7 +1471,7 @@ function renderList(){
   list.querySelectorAll('.nameInput').forEach(inp=>inp.addEventListener('change',e=>{items.find(i=>i.id===e.target.dataset.id).name=e.target.value;renderRoom();}));
   list.querySelectorAll('.wInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.w=Math.max(0.5,parseFloat(e.target.value)||it.w);it.x=Math.min(it.x,MAIN_W-it.w);renderRoom();}));
   list.querySelectorAll('.hInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.h=Math.max(0.5,parseFloat(e.target.value)||it.h);it.y=Math.min(it.y,H-it.h);renderRoom();}));
-  list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{const it=items.find(i=>i.id===e.target.dataset.id);const t=it.w;it.w=it.h;it.h=t;it.x=Math.min(it.x,MAIN_W-it.w);it.y=Math.min(it.y,H-it.h);renderRoom();}));
+  list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.rot=((it.rot||0)+45)%360;renderRoom();}));
   list.querySelectorAll('.icon-btn:not(.rotate-btn)').forEach(btn=>btn.addEventListener('click',e=>{items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
 }
 
@@ -1496,9 +1527,9 @@ const ACTIVITIES = [
   { id:'harvest', name:'Harvest → centrifuge', color:'#1f9e89', tripsPerDay:RUNS_PER_DAY, people:2,
     paths:[ ['sartorius500','harvest10','custom1','centrifuge'] ] },
   { id:'passage', name:'Passage shake flask', color:'#8a4fff', tripsPerDay:2/7, people:1,
-    paths:[ ['incubator','freezer','bsc','islandA','datastation','bsc','incubator','freezer'] ] },
+    paths:[ ['incubator','fridge','bsc','islandA','datastation','bsc','incubator','fridge'] ] },
   { id:'inocRocker', name:'Inoculate rocker', color:'#d68a00', tripsPerDay:RUNS_PER_DAY, people:1,
-    paths:[ ['incubator','freezer','bsc','islandA','datastation','bsc','custom5'] ] },
+    paths:[ ['incubator','fridge','bsc','islandA','datastation','bsc','custom5'] ] },
   { id:'inocBR', name:'Inoculate bioreactor', color:'#2f6fed', tripsPerDay:RUNS_PER_DAY, people:2,
     paths:[ ['custom5','islandA','datastation','50L-a'] ] },
 ];
@@ -1541,7 +1572,12 @@ function visible(ax,ay,bx,by,skip1,skip2){
 }
 function prepRouting(){
   _routeCache={};
-  _obst = items.map(it=>({id:it.id, x:it.x-CLEAR_FT, y:it.y-CLEAR_FT, w:it.w+2*CLEAR_FT, h:it.h+2*CLEAR_FT}));
+  _obst = items.map(it=>{
+    const cx=it.x+it.w/2, cy=it.y+it.h/2, r=((it.rot||0)*Math.PI)/180;
+    const c=Math.abs(Math.cos(r)), s=Math.abs(Math.sin(r));
+    const ex=(it.w/2)*c+(it.h/2)*s, ey=(it.w/2)*s+(it.h/2)*c;   // rotated-rect half-extents
+    return {id:it.id, x:cx-ex-CLEAR_FT, y:cy-ey-CLEAR_FT, w:2*(ex+CLEAR_FT), h:2*(ey+CLEAR_FT)};
+  });
   _nodes=[];
   _obst.forEach(o=>{
     [[o.x,o.y],[o.x+o.w,o.y],[o.x,o.y+o.h],[o.x+o.w,o.y+o.h]].forEach(c=>{
@@ -1679,6 +1715,29 @@ function renderPaths(){
 }
 
 renderWalkList();
+
+/* ---------- Size lock + saved layouts ---------- */
+(function(){ const lock=document.getElementById('lockSizes'); if(lock) lock.addEventListener('change',e=>{ sizeLocked=e.target.checked; renderRoom(); }); })();
+const LS_KEY='labSavedLayouts_v1';
+let _memSaved={};
+function loadSaved(){ try{ const s=localStorage.getItem(LS_KEY); return s?JSON.parse(s):Object.assign({},_memSaved); }catch(e){ return Object.assign({},_memSaved); } }
+function persistSaved(o){ _memSaved=o; try{ localStorage.setItem(LS_KEY,JSON.stringify(o)); }catch(e){} }
+function refreshLayoutSelect(){ const sel=document.getElementById('layoutSelect'); if(!sel) return; const saved=loadSaved(), prev=sel.value; sel.innerHTML=''; const o0=document.createElement('option'); o0.value=''; o0.textContent='— pick a saved layout —'; sel.appendChild(o0); Object.keys(saved).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); if(prev&&saved[prev]) sel.value=prev; }
+function activateLayout(n){ const saved=loadSaved(); if(!saved[n]) return; items=JSON.parse(JSON.stringify(saved[n])); selectedId=null; renderRoom(); }
+function saveLayoutAs(n){ const saved=loadSaved(); saved[n]=JSON.parse(JSON.stringify(items)); persistSaved(saved); refreshLayoutSelect(); const sel=document.getElementById('layoutSelect'); if(sel) sel.value=n; }
+(function(){
+  const q=id=>document.getElementById(id);
+  const save=q('layoutSave'), act=q('layoutActivate'), sel=q('layoutSelect'), upd=q('layoutUpdate'), del=q('layoutDelete'), exp=q('layoutExport'), imp=q('layoutImport'), file=q('layoutFile'), name=q('layoutName');
+  if(save) save.addEventListener('click',()=>{ const n=(name.value||'').trim(); if(!n){alert('Type a name first');return;} saveLayoutAs(n); name.value=''; });
+  if(act) act.addEventListener('click',()=>{ if(sel.value) activateLayout(sel.value); });
+  if(sel) sel.addEventListener('change',e=>{ if(e.target.value) activateLayout(e.target.value); });
+  if(upd) upd.addEventListener('click',()=>{ if(!sel.value){alert('Pick a layout to overwrite');return;} saveLayoutAs(sel.value); });
+  if(del) del.addEventListener('click',()=>{ if(!sel.value) return; const saved=loadSaved(); delete saved[sel.value]; persistSaved(saved); refreshLayoutSelect(); });
+  if(exp) exp.addEventListener('click',()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(loadSaved(),null,2)); a.download='saved_layouts.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
+  if(imp&&file){ imp.addEventListener('click',()=>file.click()); file.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=JSON.parse(rd.result); const saved=loadSaved(); Object.assign(saved,obj); persistSaved(saved); refreshLayoutSelect(); alert('Imported '+Object.keys(obj).length+' layout(s)'); }catch(err){ alert('Could not read that file'); } }; rd.readAsText(f); e.target.value=''; }); }
+  refreshLayoutSelect();
+})();
+
 renderRoom();
 
 </script>

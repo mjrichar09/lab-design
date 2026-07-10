@@ -30,14 +30,22 @@ runs/day**, so a "1 per run" activity contributes ~0.099 trips/day.
 
 ## Result
 
+Straight-line (this doc / `compute_walking_distance.py`), with the media
+refrigerator now modeled as its own station:
+
 | | Total walking | vs. current |
 |---|---|---|
-| **v2 (current)** | **428.5 ft/day** | — |
-| **v3 (optimized)** | **184.0 ft/day** | **−57%** |
+| **v2 (current)** | **403.7 ft/day** | — |
+| **v3 (optimized)** | **183.2 ft/day** | **−55%** |
 
-Equipment footprint is unchanged (**~33%** of the 1,408 SF working area) — this
-is purely rearrangement, not densification, so aisles and open floor are
-preserved.
+(Before the dedicated fridge was added, the freezer stood in as a media proxy
+and these read 428 / 184 ft/day. The v2 number fell most because the real fridge
+lives in the prep cluster, whereas the stranded top-left freezer had overstated
+v2's prep walking.)
+
+Equipment footprint is essentially unchanged (**~33%** of the 1,408 SF working
+area, +~8 SF for the fridge) — this is purely rearrangement, not densification,
+so aisles and open floor are preserved.
 
 ## Why the current layout is inefficient
 
@@ -77,10 +85,10 @@ against the ~245 ft/day saved on sampling.
 - **The analytics island is treated as fixed casework** (existing utility
   drops) — everything else is arranged around it. If the island *can* move,
   there's likely a bit more to gain.
-- **A media refrigerator is referenced by three workflows but does not exist as
-  a station.** The `-20/-80 freezer` is used as a proxy in the math. This is a
-  missing-equipment item — adding a dedicated media fridge in the prep cluster
-  would make the model (and the real workflow) cleaner.
+- **A dedicated media refrigerator (`fridge`) is now modeled** as its own
+  station in the prep cluster (it's referenced by three workflows). Earlier
+  revisions used the `-20/-80 freezer` as a proxy; the passage/inoculation
+  activities now route to the fridge instead.
 - **Which specific bioreactor / rocker each trip targets is assumed** where the
   narrative was ambiguous (e.g. inoculate-bioreactor → 50L seed; harvest → 500L
   + 10-capsule skid + 1000 kg collection tank). Correct these in
@@ -89,9 +97,9 @@ against the ~245 ft/day saved on sampling.
   `compute_walking_distance.py`. The room is fairly open so this is a good first
   approximation. The **interactive layouts (`layouts/*.html`) now additionally
   offer obstacle-aware routing** (paths walk *around* equipment), which reads
-  higher in absolute terms — roughly **v2 ≈ 623 ft/day and v3 ≈ 213 ft/day** —
-  but widens rather than narrows the gap (v3 is ~66% less walking than v2 when
-  routed, vs. 57% straight-line), so the conclusion is unchanged.
+  higher in absolute terms — roughly **v2 ≈ 598 ft/day and v3 ≈ 214 ft/day** —
+  but widens rather than narrows the gap (v3 is ~64% less walking than v2 when
+  routed, vs. 55% straight-line), so the conclusion is unchanged.
 - **Concurrency:** daily sampling is modeled for all three reactor scales
   because up to 3 runs can be concurrent. If in practice a run scales up
   sequentially (50L → 200L → 500L) rather than three reactors running at once,
