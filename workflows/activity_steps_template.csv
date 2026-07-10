@@ -1,0 +1,8 @@
+activity_name,step_order,station_id,notes
+EXAMPLE - Daily viability sampling,1,sartorius500,Pull sample
+EXAMPLE - Daily viability sampling,2,vicell,Run viability check
+EXAMPLE - Daily viability sampling,3,datastation,Log result
+EXAMPLE - Harvest to centrifuge,1,sartorius500,Start harvest
+EXAMPLE - Harvest to centrifuge,2,harvest10,Filter
+EXAMPLE - Harvest to centrifuge,3,centrifuge,Spin
+EXAMPLE - Harvest to centrifuge,4,freezer,Store sample

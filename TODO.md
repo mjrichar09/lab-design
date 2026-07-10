@@ -48,9 +48,14 @@ related process steps.
 
 ## 4. Optimize layout for space utilization & operations
 
+- [x] Stand up fill-in templates for workflow data (`workflows/`) to collect
+      activity sequences, frequency, and people-per-trip — needed to compute
+      walking distance. Waiting on these to be filled in.
 - [ ] Model the actual process flow sequence (inoculation → bioreactor →
       harvest → centrifugation → sample analysis) and lay out equipment in
       that order to minimize backtracking.
+- [ ] Compute the weighted travel (From-To) matrix from `workflows/` data
+      and current layout coordinates; identify highest-weight station pairs.
 - [ ] Estimate walking distances between linked steps (e.g. bioreactor to
       harvest skid to centrifuge to analytics island) and iterate placement
       to minimize them.

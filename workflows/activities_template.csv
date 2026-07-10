@@ -1,0 +1,3 @@
+activity_name,frequency_count,frequency_unit,people_per_trip,path_type,home_base_station_id,notes
+EXAMPLE - Daily viability sampling,3,per_day,1,hub_and_spoke,datastation,"Sample pulled from bioreactor, walked to island for analysis, result logged at data station"
+EXAMPLE - Harvest to centrifuge,1,per_run,2,circuit,,"Full harvest circuit at end of a run"

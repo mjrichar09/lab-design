@@ -48,6 +48,9 @@ construction drawings.
 1. Open `layouts/upstream_lab_layout_v2.html` in a browser to view/edit the
    current layout.
 2. Track outstanding design work in `TODO.md`.
-3. When you export an edited layout from the tool, save it into `layouts/`
+3. Fill in the workflow data templates in `workflows/` to describe daily and
+   per-run activities — this feeds the walking-distance analysis (see
+   `workflows/README.md`).
+4. When you export an edited layout from the tool, save it into `layouts/`
    with an incremented version suffix (e.g. `_v3`) so prior iterations stay
    available for comparison.

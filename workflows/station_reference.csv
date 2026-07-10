@@ -1,0 +1,27 @@
+station_id,station_name,category
+sartorius500,Sartorius BIOSTAT STR 500L + control tower,Bioreactors / ATF
+atf6,ATF 6 (paired w/ 500L),Bioreactors / ATF
+200L-a,200L bioreactor A,Bioreactors / ATF
+50L-a,50L bioreactor A,Bioreactors / ATF
+gasmanifold,CO2/Air/N2/O2 gas manifold,"Carts, utilities & storage"
+bsc,Biosafety cabinet (Class II),"Carts, utilities & storage"
+freezer,-20°C/-80°C sample freezer,"Carts, utilities & storage"
+incubator,CO2 incubator / shaker,"Carts, utilities & storage"
+islandA,Existing island 1 — cell & metabolite analytics,"Carts, utilities & storage"
+vicell,Vi-CELL BLU cell viability analyzer,Bioreactors / ATF
+nova,Nova BioProfile FLEX2 (metabolite/gas),Bioreactors / ATF
+benchcentrifuge,Benchtop centrifuge,Centrifugation
+datastation,Data / laptop station,Custom / user-added
+harvest10,Millipore harvest skid — 10×1.1 m² capsules,Harvest / filtration skids
+harvest5,Millipore harvest skid — 5×1.1 m² capsules,Harvest / filtration skids
+centrifuge,Alfa Laval continuous centrifuge (single-use),Centrifugation
+safety,Handwash sink + eyewash station,"Carts, utilities & storage"
+custom1,Scale 1000 kg,Custom / user-added
+custom2,Scale 500 Kg,Custom / user-added
+custom3,Scale 150 kg,Custom / user-added
+custom4,Bench,Custom / user-added
+custom5,Rocker 1,Custom / user-added
+custom6,Rocker 2,Custom / user-added
+custom7,Rocker 3,Custom / user-added
+custom8,CO2/Air/N2/O2 gas manifold,Custom / user-added
+custom9,Consumables storage,Custom / user-added
