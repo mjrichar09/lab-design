@@ -92,6 +92,13 @@ related process steps.
       "resize" (e.g. resize only via an explicit toggle/handle or the sidebar
       W×H fields), so dragging never changes dimensions unintentionally.
       Keep an intentional way to edit size on purpose.
+- [ ] Savable layouts. Let the user save the current arrangement under a name
+      and keep several, shown in a block/list with a dropdown (or set of
+      buttons) to activate/switch between them without losing the others —
+      so alternatives (e.g. current vs. optimized vs. process-flow) can be
+      compared in one file. Consider persisting to browser localStorage so
+      saved layouts survive a reload, plus export/import to move them between
+      copies of the file.
 
 ## 6. Sign-off
 
