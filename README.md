@@ -7,12 +7,19 @@ construction drawings.
 
 ## What's here
 
-- `layouts/upstream_lab_layout_v2.html` — an interactive, single-file HTML floor
-  plan editor for the **Upstream Process Development Suite**. Open it directly
-  in a browser (no server/build step needed). Drag equipment to reposition,
-  use the corner handle to resize, ↻ to rotate, and the sidebar list to
-  rename/add/remove items. Use **"Download my edited layout"** to export your
-  edits as a new standalone HTML file.
+- `layouts/upstream_lab_layout_v2.html` — the current/as-provided interactive
+  floor plan for the **Upstream Process Development Suite**. Open it directly in
+  a browser (no server/build step needed). Drag equipment to reposition, use the
+  corner handle to resize, ↻ to rotate, and the sidebar list to rename/add/remove
+  items. Use **"Download my edited layout"** to export your edits as a new
+  standalone HTML file.
+- `layouts/upstream_lab_layout_v3.html` — a **walking-distance-optimized**
+  rearrangement of the same equipment (~57% less daily walking, same footprint).
+  Same interactive tool. See `workflows/walking_distance_analysis.md` for the
+  rationale and numbers.
+- `workflows/` — workflow data (activities, ordered station sequences, run
+  cadence) plus `compute_walking_distance.py`, which turns that data + a layout
+  into a weighted travel chart. See `workflows/README.md`.
 
 ### Space summary (as of v2)
 

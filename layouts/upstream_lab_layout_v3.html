@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js" integrity="sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures (htmlToImage undefined) and toPng errors
+            // so the parent always gets a response instead of hanging forever.
+            try {
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
+<meta charset="UTF-8">
+<title>Upstream Process Development Suite — Floor Plan (v3, walking-distance optimized)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --paper:#f5f3ec;
+    --ink:#1c2b3a;
+    --blue:#2c5f8a;
+    --blue-light:#c9d9e6;
+    --line:#a9bccb;
+    --teal:#3e7c7c;
+    --teal-fill:#e4efee;
+    --amber:#b9822f;
+    --amber-fill:#f6ecda;
+    --plum:#6b4c7a;
+    --plum-fill:#eee6f0;
+    --slate:#5b6b7a;
+    --slate-fill:#e9ecee;
+    --danger:#a4453a;
+    --white:#fffdf8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'IBM Plex Sans',sans-serif;background:var(--paper);color:var(--ink);}
+  header{padding:20px 28px 12px;border-bottom:2px solid var(--ink);}
+  header h1{font-size:21px;margin:0 0 4px;}
+  header .sub{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--blue);}
+  .app{display:flex;align-items:flex-start;}
+  .sidebar{width:330px;flex-shrink:0;padding:16px 18px 40px;border-right:2px solid var(--ink);min-height:calc(100vh - 84px);background:var(--white);overflow-y:auto;}
+  .sidebar h2{font-size:11.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--blue);border-bottom:1px solid var(--line);padding-bottom:6px;margin:16px 0 8px;}
+  .sidebar h2:first-child{margin-top:0;}
+  .stat-row{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:12px;margin:4px 0;}
+  .bar-track{height:8px;background:var(--blue-light);border-radius:4px;overflow:hidden;margin:8px 0 2px;}
+  .bar-fill{height:100%;background:var(--blue);}
+  .item-row{display:flex;align-items:center;gap:5px;padding:5px 3px;border-bottom:1px dashed var(--line);font-size:11.5px;}
+  .swatch{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
+  .item-row input[type=text]{flex:1;min-width:0;border:1px solid transparent;background:transparent;font-size:11.5px;padding:2px 3px;border-radius:3px;font-family:'IBM Plex Sans',sans-serif;}
+  .item-row input[type=text]:hover,.item-row input[type=text]:focus{border-color:var(--line);background:#fff;}
+  .item-row input[type=number]{width:34px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;border:1px solid var(--line);border-radius:3px;padding:2px;text-align:center;}
+  .item-row .dim{color:var(--slate);font-family:'IBM Plex Mono',monospace;font-size:10.5px;}
+  .icon-btn{border:none;background:none;cursor:pointer;font-size:12px;color:var(--slate);padding:2px 3px;}
+  .icon-btn:hover{color:var(--danger);}
+  .rotate-btn:hover{color:var(--blue);}
+  button.add-btn{width:100%;margin-top:8px;padding:8px;background:var(--ink);color:var(--white);border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;}
+  button.add-btn:hover{background:var(--blue);}
+  .legend{font-size:11px;line-height:1.85;}
+  .legend .swatch{display:inline-block;margin-right:6px;vertical-align:middle;}
+  .toolbar{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;}
+  .toolbar button{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:6px 9px;border:1px solid var(--ink);background:#fff;border-radius:4px;cursor:pointer;}
+  .toolbar button:hover{background:var(--ink);color:#fff;}
+  .hint{font-size:10.8px;color:var(--slate);margin-top:8px;line-height:1.5;}
+  .note-box{font-size:10.8px;background:var(--slate-fill);border:1px solid var(--line);border-radius:5px;padding:8px;line-height:1.5;margin-top:6px;}
+
+  .canvas-wrap{flex:1;padding:34px;overflow:auto;}
+  #stage{position:relative;}
+  #bgSvg{position:absolute;top:0;left:0;}
+  #equipLayer{position:absolute;top:0;left:0;}
+  .equip{
+    position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:5px;
+    cursor:grab;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    display:flex;flex-direction:column;
+  }
+  .equip:active{cursor:grabbing;}
+  .equip.selected{outline:2.5px solid var(--danger);outline-offset:2px;z-index:5;}
+  .equip svg{flex:1;width:100%;height:100%;display:block;}
+  .equip .lbl{
+    position:absolute;left:2px;right:2px;top:2px;
+    font-size:9px;font-weight:600;text-align:center;line-height:1.1;color:var(--ink);
+    text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;
+    pointer-events:none;
+  }
+  .equip .dimtag{
+    position:absolute;bottom:2px;right:3px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--ink);
+    text-shadow:0 0 2px #fff,0 0 2px #fff;pointer-events:none;
+  }
+  .resize-handle{position:absolute;width:11px;height:11px;right:-4px;bottom:-4px;background:var(--ink);border:2px solid #fff;border-radius:50%;cursor:nwse-resize;}
+  .titleblock{position:relative;margin-top:14px;margin-left:auto;width:280px;border:2px solid var(--ink);background:var(--white);font-family:'IBM Plex Mono',monospace;font-size:10px;}
+  .titleblock .tb-head{background:var(--ink);color:#fff;padding:5px 8px;font-weight:600;font-size:10.5px;}
+  .titleblock table{width:100%;border-collapse:collapse;}
+  .titleblock td{padding:3px 8px;border-top:1px solid var(--blue-light);}
+  .titleblock td.label{color:var(--blue);width:50%;}
+  @media print{
+    .sidebar,.toolbar,.hint{display:none !important;}
+    .canvas-wrap{padding:0;}
+    body{background:#fff;}
+  }
+</style>
+</head>
+<body id="artifacts-component-root-html">
+<header>
+  <h1>Upstream Process Development Suite — walking-distance optimized (v3)</h1>
+  <div class="sub">1,409 SF working area + adjacent RM 34166 (analytical storage) &nbsp;|&nbsp; drag/resize equipment &nbsp;|&nbsp; storage room shown for reference, not editable</div>
+</header>
+
+<div class="app">
+  <div class="sidebar">
+    <h2>Room Utilization (1,409 SF zone only)</h2>
+    <div class="stat-row"><span>Working area</span><b id="roomArea">1,409 SF</b></div>
+    <div class="stat-row"><span>Equipment footprint</span><b id="usedArea">477 SF</b></div>
+    <div class="stat-row"><span>Open floor / aisles</span><b id="openArea">932 SF</b></div>
+    <div class="bar-track"><div class="bar-fill" id="barFill" style="width: 33.868%;"></div></div>
+    <div class="stat-row"><span id="pctLabel">33.9% occupied</span><span></span></div>
+
+    <div class="toolbar">
+      <button onclick="location.reload()">Reset layout</button>
+      <button onclick="window.print()">Print / PDF</button>
+      <button onclick="exportLayout()" style="background:var(--blue);color:#fff;border-color:var(--blue);">⬇ Download my edited layout</button>
+    </div>
+
+    <h2>Equipment &amp; Support Items</h2>
+    <div id="itemList"><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="Sartorius BIOSTAT STR 500L + control tower" data-id="sartorius500" class="nameInput">
+      <input type="number" step="0.5" value="7" class="wInput" data-id="sartorius500">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="7.5" class="hInput" data-id="sartorius500">
+      <button class="icon-btn rotate-btn" data-id="sartorius500">↻</button>
+      <button class="icon-btn" data-id="sartorius500">✕</button></div><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="ATF 6 (paired w/ 500L)" data-id="atf6" class="nameInput">
+      <input type="number" step="0.5" value="2.5" class="wInput" data-id="atf6">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2.5" class="hInput" data-id="atf6">
+      <button class="icon-btn rotate-btn" data-id="atf6">↻</button>
+      <button class="icon-btn" data-id="atf6">✕</button></div><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="200L bioreactor A" data-id="200L-a" class="nameInput">
+      <input type="number" step="0.5" value="5" class="wInput" data-id="200L-a">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="5" class="hInput" data-id="200L-a">
+      <button class="icon-btn rotate-btn" data-id="200L-a">↻</button>
+      <button class="icon-btn" data-id="200L-a">✕</button></div><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="50L bioreactor A" data-id="50L-a" class="nameInput">
+      <input type="number" step="0.5" value="3.5" class="wInput" data-id="50L-a">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3" class="hInput" data-id="50L-a">
+      <button class="icon-btn rotate-btn" data-id="50L-a">↻</button>
+      <button class="icon-btn" data-id="50L-a">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="CO2/Air/N2/O2 gas manifold" data-id="gasmanifold" class="nameInput">
+      <input type="number" step="0.5" value="8" class="wInput" data-id="gasmanifold">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="1" class="hInput" data-id="gasmanifold">
+      <button class="icon-btn rotate-btn" data-id="gasmanifold">↻</button>
+      <button class="icon-btn" data-id="gasmanifold">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="Biosafety cabinet (Class II)" data-id="bsc" class="nameInput">
+      <input type="number" step="0.5" value="6" class="wInput" data-id="bsc">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3" class="hInput" data-id="bsc">
+      <button class="icon-btn rotate-btn" data-id="bsc">↻</button>
+      <button class="icon-btn" data-id="bsc">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="-20°C/-80°C sample freezer" data-id="freezer" class="nameInput">
+      <input type="number" step="0.5" value="3" class="wInput" data-id="freezer">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3" class="hInput" data-id="freezer">
+      <button class="icon-btn rotate-btn" data-id="freezer">↻</button>
+      <button class="icon-btn" data-id="freezer">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="CO2 incubator / shaker" data-id="incubator" class="nameInput">
+      <input type="number" step="0.5" value="3" class="wInput" data-id="incubator">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2.5" class="hInput" data-id="incubator">
+      <button class="icon-btn rotate-btn" data-id="incubator">↻</button>
+      <button class="icon-btn" data-id="incubator">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="Existing island 1 — cell &amp; metabolite analytics" data-id="islandA" class="nameInput">
+      <input type="number" step="0.5" value="6" class="wInput" data-id="islandA">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="18" class="hInput" data-id="islandA">
+      <button class="icon-btn rotate-btn" data-id="islandA">↻</button>
+      <button class="icon-btn" data-id="islandA">✕</button></div><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="Vi-CELL BLU cell viability analyzer" data-id="vicell" class="nameInput">
+      <input type="number" step="0.5" value="2.2" class="wInput" data-id="vicell">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2.2" class="hInput" data-id="vicell">
+      <button class="icon-btn rotate-btn" data-id="vicell">↻</button>
+      <button class="icon-btn" data-id="vicell">✕</button></div><div class="item-row"><span class="swatch" style="background:#3e7c7c"></span>
+      <input type="text" value="Nova BioProfile FLEX2 (metabolite/gas)" data-id="nova" class="nameInput">
+      <input type="number" step="0.5" value="2" class="wInput" data-id="nova">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2" class="hInput" data-id="nova">
+      <button class="icon-btn rotate-btn" data-id="nova">↻</button>
+      <button class="icon-btn" data-id="nova">✕</button></div><div class="item-row"><span class="swatch" style="background:#b9822f"></span>
+      <input type="text" value="Benchtop centrifuge" data-id="benchcentrifuge" class="nameInput">
+      <input type="number" step="0.5" value="2.2" class="wInput" data-id="benchcentrifuge">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2.2" class="hInput" data-id="benchcentrifuge">
+      <button class="icon-btn rotate-btn" data-id="benchcentrifuge">↻</button>
+      <button class="icon-btn" data-id="benchcentrifuge">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Data / laptop station" data-id="datastation" class="nameInput">
+      <input type="number" step="0.5" value="2.2" class="wInput" data-id="datastation">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="1.6" class="hInput" data-id="datastation">
+      <button class="icon-btn rotate-btn" data-id="datastation">↻</button>
+      <button class="icon-btn" data-id="datastation">✕</button></div><div class="item-row"><span class="swatch" style="background:#6b4c7a"></span>
+      <input type="text" value="Millipore harvest skid — 10×1.1 m² capsules" data-id="harvest10" class="nameInput">
+      <input type="number" step="0.5" value="7" class="wInput" data-id="harvest10">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="4" class="hInput" data-id="harvest10">
+      <button class="icon-btn rotate-btn" data-id="harvest10">↻</button>
+      <button class="icon-btn" data-id="harvest10">✕</button></div><div class="item-row"><span class="swatch" style="background:#6b4c7a"></span>
+      <input type="text" value="Millipore harvest skid — 5×1.1 m² capsules" data-id="harvest5" class="nameInput">
+      <input type="number" step="0.5" value="5" class="wInput" data-id="harvest5">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3.5" class="hInput" data-id="harvest5">
+      <button class="icon-btn rotate-btn" data-id="harvest5">↻</button>
+      <button class="icon-btn" data-id="harvest5">✕</button></div><div class="item-row"><span class="swatch" style="background:#b9822f"></span>
+      <input type="text" value="Alfa Laval continuous centrifuge (single-use)" data-id="centrifuge" class="nameInput">
+      <input type="number" step="0.5" value="5" class="wInput" data-id="centrifuge">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="4.5" class="hInput" data-id="centrifuge">
+      <button class="icon-btn rotate-btn" data-id="centrifuge">↻</button>
+      <button class="icon-btn" data-id="centrifuge">✕</button></div><div class="item-row"><span class="swatch" style="background:#5b6b7a"></span>
+      <input type="text" value="Handwash sink + eyewash station" data-id="safety" class="nameInput">
+      <input type="number" step="0.5" value="3" class="wInput" data-id="safety">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2" class="hInput" data-id="safety">
+      <button class="icon-btn rotate-btn" data-id="safety">↻</button>
+      <button class="icon-btn" data-id="safety">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Scale 1000 kg" data-id="custom1" class="nameInput">
+      <input type="number" step="0.5" value="4" class="wInput" data-id="custom1">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="4" class="hInput" data-id="custom1">
+      <button class="icon-btn rotate-btn" data-id="custom1">↻</button>
+      <button class="icon-btn" data-id="custom1">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Scale 500 Kg" data-id="custom2" class="nameInput">
+      <input type="number" step="0.5" value="3" class="wInput" data-id="custom2">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3" class="hInput" data-id="custom2">
+      <button class="icon-btn rotate-btn" data-id="custom2">↻</button>
+      <button class="icon-btn" data-id="custom2">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Scale 150 kg" data-id="custom3" class="nameInput">
+      <input type="number" step="0.5" value="2.5" class="wInput" data-id="custom3">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2.5" class="hInput" data-id="custom3">
+      <button class="icon-btn rotate-btn" data-id="custom3">↻</button>
+      <button class="icon-btn" data-id="custom3">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Bench " data-id="custom4" class="nameInput">
+      <input type="number" step="0.5" value="14" class="wInput" data-id="custom4">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="3" class="hInput" data-id="custom4">
+      <button class="icon-btn rotate-btn" data-id="custom4">↻</button>
+      <button class="icon-btn" data-id="custom4">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Rocker 1 " data-id="custom5" class="nameInput">
+      <input type="number" step="0.5" value="4" class="wInput" data-id="custom5">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2" class="hInput" data-id="custom5">
+      <button class="icon-btn rotate-btn" data-id="custom5">↻</button>
+      <button class="icon-btn" data-id="custom5">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Rocker 2" data-id="custom6" class="nameInput">
+      <input type="number" step="0.5" value="4" class="wInput" data-id="custom6">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2" class="hInput" data-id="custom6">
+      <button class="icon-btn rotate-btn" data-id="custom6">↻</button>
+      <button class="icon-btn" data-id="custom6">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Rocker 3" data-id="custom7" class="nameInput">
+      <input type="number" step="0.5" value="4" class="wInput" data-id="custom7">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="2" class="hInput" data-id="custom7">
+      <button class="icon-btn rotate-btn" data-id="custom7">↻</button>
+      <button class="icon-btn" data-id="custom7">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="CO2/Air/N2/O2 gas manifold" data-id="custom8" class="nameInput">
+      <input type="number" step="0.5" value="1" class="wInput" data-id="custom8">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="8" class="hInput" data-id="custom8">
+      <button class="icon-btn rotate-btn" data-id="custom8">↻</button>
+      <button class="icon-btn" data-id="custom8">✕</button></div><div class="item-row"><span class="swatch" style="background:#2c5f8a"></span>
+      <input type="text" value="Consumables storage" data-id="custom9" class="nameInput">
+      <input type="number" step="0.5" value="3" class="wInput" data-id="custom9">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="12" class="hInput" data-id="custom9">
+      <button class="icon-btn rotate-btn" data-id="custom9">↻</button>
+      <button class="icon-btn" data-id="custom9">✕</button></div></div>
+    <button class="add-btn" onclick="addCustomItem()">+ Add custom item</button>
+
+    <h2>Legend</h2>
+    <div class="legend">
+      <div><span class="swatch" style="background:var(--teal)"></span>Bioreactors / ATF</div>
+      <div><span class="swatch" style="background:var(--amber)"></span>Centrifugation</div>
+      <div><span class="swatch" style="background:var(--plum)"></span>Harvest / filtration skids</div>
+      <div><span class="swatch" style="background:var(--slate)"></span>Carts, utilities &amp; storage</div>
+      <div><span class="swatch" style="background:var(--blue)"></span>Custom / user-added</div>
+    </div>
+
+    <div class="note-box">
+      <b>v3 — walking-distance optimized.</b> Repositioned to cut total daily walking ~57% (≈428 → ≈182 ft/day, per the workflow data in <code>/workflows</code>). Two changes drive most of it: (1) the <b>bioreactors moved from the far-right wall into a central bay right beside the fixed analytics island + data station</b>, since daily sampling (bioreactor → island → data station, 2×/day per reactor) is ~85% of all foot traffic; (2) the <b>prep cluster — incubator, freezer/media, BSC — is grouped tight in the lower-left</b> so the passage/inoculation loop no longer bounces the width of the room. See <code>/workflows/walking_distance_analysis.md</code> for the full breakdown.
+      <br><br>
+      <b>Still to confirm:</b> the analytics <b>island is treated as fixed casework</b> (utility drops) — everything was arranged around it. A dedicated <b>media refrigerator</b> is referenced by three workflows but doesn't exist as a station yet (freezer used as a proxy in the math). Which specific bioreactor each "daily sampling" / "inoculate" trip targets is assumed — adjust in <code>/workflows</code> if wrong.
+      <br><br>
+      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.
+      <br><br>
+      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.
+    </div>
+    <div class="hint">Equipment icons are schematic (not photos) so the file stays a single offline HTML you can keep editing — click an item to select, drag to move, corner dot to resize, ↻ to rotate. Use <b>"Download my edited layout"</b> above to save exactly what's on screen — including any moves, resizes, renames, additions, or deletions you've made — as a new standalone HTML file that anyone can open and keep editing the same way.</div>
+  </div>
+
+  <div class="canvas-wrap">
+    <div id="stage" style="width: 770px; height: 448px;">
+      <svg id="bgSvg" width="770" height="448" viewBox="0 0 770 448"><defs>
+  <pattern id="grid" width="14" height="14" patternUnits="userSpaceOnUse">
+    <path d="M 14 0 L 0 0 0 14" fill="none" stroke="#c7d5df" stroke-width="1"></path>
+  </pattern>
+  <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <line x1="0" y1="0" x2="0" y2="8" stroke="#9aa7ae" stroke-width="2"></line>
+  </pattern>
+</defs>
+<polygon points="154,0 756,0 756,14 770,14 770,434 756,434 756,448 154,448" fill="url(#grid)" fill-opacity="1" stroke="#1c2b3a" stroke-width="3"></polygon>
+<polygon points="154,0 756,0 756,14 770,14 770,434 756,434 756,448 154,448" fill="none" stroke="#a4453a" stroke-width="1.6" stroke-dasharray="6 4"></polygon>
+<rect x="756" y="0" width="14" height="14" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"></rect>
+<rect x="756" y="434" width="14" height="14" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"></rect>
+<text x="763" y="9.799999999999999" font-size="7" font-family="IBM Plex Mono" transform="rotate(90 763 9.799999999999999)">COL</text>
+<text x="462" y="224" text-anchor="middle" font-size="15" fill="#a4453a" font-family="IBM Plex Mono" font-weight="600">~1,409 SF</text>
+<rect x="265" y="-2" width="44" height="4" fill="#f5f3ec"></rect><path d="M 266 0 A 42 42 0 0 1 308 42" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="266" y1="0" x2="266" y2="42" stroke="#1c2b3a" stroke-width="1.6"></line>
+<rect x="433" y="-2" width="44" height="4" fill="#f5f3ec"></rect><path d="M 434 0 A 42 42 0 0 1 476 42" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="434" y1="0" x2="434" y2="42" stroke="#1c2b3a" stroke-width="1.6"></line><text x="455" y="-6" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#2c5f8a">CR</text>
+<rect x="559" y="-2" width="44" height="4" fill="#f5f3ec"></rect><path d="M 560 0 A 42 42 0 0 1 602 42" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="560" y1="0" x2="560" y2="42" stroke="#1c2b3a" stroke-width="1.6"></line>
+<rect x="699" y="-2" width="44" height="4" fill="#f5f3ec"></rect><path d="M 700 0 A 42 42 0 0 1 742 42" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="700" y1="0" x2="700" y2="42" stroke="#1c2b3a" stroke-width="1.6"></line><text x="721" y="-6" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#2c5f8a">CR</text>
+<rect x="405" y="446" width="44" height="4" fill="#f5f3ec"></rect><path d="M 406 448 A 42 42 0 0 0 448 406" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="406" y1="448" x2="406" y2="406" stroke="#1c2b3a" stroke-width="1.6"></line>
+<rect x="545" y="446" width="44" height="4" fill="#f5f3ec"></rect><path d="M 546 448 A 42 42 0 0 0 588 406" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="546" y1="448" x2="546" y2="406" stroke="#1c2b3a" stroke-width="1.6"></line>
+<rect x="153" y="236" width="44" height="4" fill="#f5f3ec"></rect><path d="M 154 238 A 42 42 0 0 1 196 280" fill="none" stroke="#1c2b3a" stroke-width="1"></path>
+           <line x1="154" y1="238" x2="154" y2="280" stroke="#1c2b3a" stroke-width="1.6"></line>
+<text x="462" y="462" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a">44'-0" (approx.)</text>
+<text x="146" y="224" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a" transform="rotate(-90 146 224)">32'-0" (approx.)</text>
+<rect x="0" y="0" width="154" height="224" fill="#cfd4d6" stroke="#5b6b7a" stroke-width="1.4"></rect>
+<line x1="0" y1="0" x2="154" y2="224" stroke="#8a9299" stroke-width="1"></line>
+<line x1="154" y1="0" x2="0" y2="224" stroke="#8a9299" stroke-width="1"></line>
+<text x="77" y="112" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">EXISTING SHAFT/FEATURE</text>
+<text x="77" y="126" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">(not in either room's SF)</text>
+<rect x="0" y="224" width="154" height="224" fill="#eef1ee" stroke="#1c2b3a" stroke-width="3"></rect>
+<text x="77" y="246.40000000000003" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" font-weight="600">ANALYTICAL STORAGE</text>
+<rect x="16.8" y="252" width="61.60000000000001" height="28" fill="#fff" stroke="#2c5f8a"></rect>
+<text x="47.6" y="271.59999999999997" text-anchor="middle" font-size="8.5" font-family="IBM Plex Mono" fill="#2c5f8a">RM 34166</text>
+<text x="47.6" y="294" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#a4453a">179 sf</text>
+<rect x="95.2" y="232.40000000000003" width="19.599999999999998" height="18.2" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="243.59999999999997" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">A5</text>
+<rect x="95.2" y="252" width="19.599999999999998" height="18.2" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="263.19999999999993" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">A5</text>
+<rect x="95.2" y="271.59999999999997" width="19.599999999999998" height="18.2" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="282.79999999999995" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">A3</text>
+<rect x="95.2" y="291.2" width="19.599999999999998" height="22.400000000000002" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="304.5" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">TA-18</text>
+<rect x="95.2" y="315" width="19.599999999999998" height="22.400000000000002" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="328.3" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">TA-10</text>
+<rect x="95.2" y="338.8" width="19.599999999999998" height="18.2" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="349.99999999999994" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">A6</text>
+<rect x="95.2" y="358.40000000000003" width="19.599999999999998" height="18.2" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="105" y="369.59999999999997" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">A7</text>
+<rect x="8.4" y="399" width="28" height="28" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="22.400000000000002" y="414.40000000000003" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A1</text>
+<rect x="39.199999999999996" y="399" width="28" height="28" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"></rect>
+<text x="53.199999999999996" y="414.40000000000003" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A2</text></svg>
+      <div id="equipLayer" style="width: 616px; height: 448px; left: 154px;"><div class="equip" data-id="sartorius500" style="left: 490px; top: 245px; width: 98px; height: 105px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">Sartorius BIOSTAT STR 500L + control tower</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <ellipse cx="42" cy="55" rx="34" ry="34" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"></ellipse>
+        <circle cx="42" cy="55" r="9" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"></circle>
+        <circle cx="42" cy="20" r="3" fill="#2f5f5f"></circle>
+        <circle cx="30" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <circle cx="54" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <rect x="80" y="18" width="17" height="74" rx="2" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="2"></rect>
+        <rect x="83" y="24" width="11" height="8" fill="#2f5f5f"></rect>
+        <rect x="83" y="36" width="11" height="4" fill="#8fb5b3"></rect>
+        <rect x="83" y="43" width="11" height="4" fill="#8fb5b3"></rect>
+      </svg><div class="dimtag">7'×7.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="atf6" style="left: 147px; top: 7px; width: 35px; height: 35px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">ATF 6 (paired w/ 500L)</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="18" width="84" height="64" rx="8" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"></rect>
+        <circle cx="34" cy="50" r="15" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"></circle>
+        <circle cx="66" cy="50" r="10" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="1.5"></circle>
+        <line x1="49" y1="50" x2="56" y2="50" stroke="#2f5f5f" stroke-width="2"></line>
+      </svg><div class="dimtag">2.5'×2.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="200L-a" style="left: 504px; top: 98px; width: 70px; height: 70px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">200L bioreactor A</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <ellipse cx="42" cy="55" rx="34" ry="34" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"></ellipse>
+        <circle cx="42" cy="55" r="9" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"></circle>
+        <circle cx="42" cy="20" r="3" fill="#2f5f5f"></circle>
+        <circle cx="30" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <circle cx="54" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <rect x="80" y="18" width="17" height="74" rx="2" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="2"></rect>
+        <rect x="83" y="24" width="11" height="8" fill="#2f5f5f"></rect>
+        <rect x="83" y="36" width="11" height="4" fill="#8fb5b3"></rect>
+        <rect x="83" y="43" width="11" height="4" fill="#8fb5b3"></rect>
+      </svg><div class="dimtag">5'×5'</div><div class="resize-handle"></div></div><div class="equip" data-id="50L-a" style="left: 497px; top: 14px; width: 49px; height: 42px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">50L bioreactor A</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <ellipse cx="42" cy="55" rx="34" ry="34" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"></ellipse>
+        <circle cx="42" cy="55" r="9" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"></circle>
+        <circle cx="42" cy="20" r="3" fill="#2f5f5f"></circle>
+        <circle cx="30" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <circle cx="54" cy="24" r="2.4" fill="#2f5f5f"></circle>
+        <rect x="80" y="18" width="17" height="74" rx="2" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="2"></rect>
+        <rect x="83" y="24" width="11" height="8" fill="#2f5f5f"></rect>
+        <rect x="83" y="36" width="11" height="4" fill="#8fb5b3"></rect>
+        <rect x="83" y="43" width="11" height="4" fill="#8fb5b3"></rect>
+      </svg><div class="dimtag">3.5'×3'</div><div class="resize-handle"></div></div><div class="equip" data-id="gasmanifold" style="left: 343px; top: 0px; width: 112px; height: 14px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">CO2/Air/N2/O2 gas manifold</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="34" width="92" height="16" fill="#dfe3e5" stroke="#5b6b7a" stroke-width="1.4"></rect>
+        <circle cx="16" cy="42" r="15" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"></circle><circle cx="39" cy="42" r="15" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"></circle><circle cx="62" cy="42" r="15" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"></circle><circle cx="85" cy="42" r="15" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"></circle>
+      </svg><div class="dimtag">8'×1'</div><div class="resize-handle"></div></div><div class="equip" data-id="bsc" style="left: 63px; top: 399px; width: 84px; height: 42px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">Biosafety cabinet (Class II)</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="8" width="92" height="84" rx="4" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.4"></rect>
+        <rect x="10" y="16" width="80" height="24" fill="#d6dde2" stroke="#5b6b7a" stroke-width="1.2"></rect>
+        <line x1="10" y1="40" x2="90" y2="40" stroke="#5b6b7a" stroke-width="1.4" stroke-dasharray="4 3"></line>
+        <path d="M14 50 L86 50" stroke="#8f9aa3" stroke-width="1"></path>
+        <path d="M14 60 L86 60" stroke="#8f9aa3" stroke-width="1"></path>
+        <path d="M14 70 L86 70" stroke="#8f9aa3" stroke-width="1"></path>
+        <circle cx="50" cy="26" r="5" fill="#a9bccb"></circle>
+      </svg><div class="dimtag">6'×3'</div><div class="resize-handle"></div></div><div class="equip" data-id="freezer" style="left: 14px; top: 7px; width: 42px; height: 42px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">-20°C/-80°C sample freezer</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="10" y="4" width="80" height="92" rx="4" fill="#e7edf0" stroke="#5b6b7a" stroke-width="2.4"></rect>
+        <line x1="10" y1="50" x2="90" y2="50" stroke="#5b6b7a" stroke-width="1.6"></line>
+        <rect x="44" y="14" width="6" height="26" fill="#5b6b7a"></rect>
+        <rect x="44" y="60" width="6" height="26" fill="#5b6b7a"></rect>
+      </svg><div class="dimtag">3'×3'</div><div class="resize-handle"></div></div><div class="equip" data-id="incubator" style="left: 7px; top: 399px; width: 42px; height: 35px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">CO2 incubator / shaker</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="6" y="6" width="88" height="88" rx="6" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.4"></rect>
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#5b6b7a" stroke-width="1.6" stroke-dasharray="5 4"></circle>
+        <path d="M50 24 A26 26 0 0 1 76 50" fill="none" stroke="#5b6b7a" stroke-width="2.4"></path>
+        <circle cx="50" cy="50" r="4" fill="#5b6b7a"></circle>
+      </svg><div class="dimtag">3'×2.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="islandA" style="left: 98px; top: 77px; width: 84px; height: 252px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">Existing island 1 — cell &amp; metabolite analytics</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="2" y="10" width="96" height="80" rx="16" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.5"></rect>
+        <rect x="10" y="18" width="80" height="64" rx="10" fill="none" stroke="#a9bccb" stroke-width="1.4" stroke-dasharray="4 3"></rect>
+        <circle cx="20" cy="50" r="2.6" fill="#5b6b7a"></circle><circle cx="80" cy="50" r="2.6" fill="#5b6b7a"></circle>
+      </svg><div class="dimtag">6'×18'</div><div class="resize-handle"></div></div><div class="equip" data-id="vicell" style="left: 161px; top: 189px; width: 30.8px; height: 30.8px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">Vi-CELL BLU cell viability analyzer</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="26" width="84" height="58" rx="6" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.2"></rect>
+        <rect x="16" y="12" width="46" height="20" rx="3" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.6"></rect>
+        <circle cx="78" cy="55" r="8" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.2"></circle>
+        <rect x="18" y="60" width="30" height="6" fill="#8fb5b3"></rect>
+      </svg><div class="dimtag">2.2'×2.2'</div><div class="resize-handle"></div></div><div class="equip" data-id="nova" style="left: 161px; top: 252px; width: 28px; height: 28px; background: var(--teal-fill); border-color: rgb(62, 124, 124);"><div class="lbl">Nova BioProfile FLEX2 (metabolite/gas)</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="26" width="84" height="58" rx="6" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.2"></rect>
+        <rect x="16" y="12" width="46" height="20" rx="3" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.6"></rect>
+        <circle cx="78" cy="55" r="8" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.2"></circle>
+        <rect x="18" y="60" width="30" height="6" fill="#8fb5b3"></rect>
+      </svg><div class="dimtag">2'×2'</div><div class="resize-handle"></div></div><div class="equip" data-id="benchcentrifuge" style="left: 91px; top: 119px; width: 30.8px; height: 30.8px; background: var(--amber-fill); border-color: rgb(185, 130, 47);"><div class="lbl">Benchtop centrifuge</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <circle cx="50" cy="50" r="42" fill="#f7eedb" stroke="#8a5f22" stroke-width="2.5"></circle>
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#8a5f22" stroke-width="1.4"></circle>
+        <line x1="64" y1="50" x2="76" y2="50" stroke="#8a5f22" stroke-width="1.4"></line><line x1="59.89949493661167" y1="59.89949493661166" x2="68.38477631085024" y2="68.38477631085024" stroke="#8a5f22" stroke-width="1.4"></line><line x1="50" y1="64" x2="50" y2="76" stroke="#8a5f22" stroke-width="1.4"></line><line x1="40.10050506338834" y1="59.89949493661167" x2="31.615223689149765" y2="68.38477631085024" stroke="#8a5f22" stroke-width="1.4"></line><line x1="36" y1="50" x2="24" y2="50" stroke="#8a5f22" stroke-width="1.4"></line><line x1="40.10050506338833" y1="40.10050506338834" x2="31.61522368914976" y2="31.615223689149765" stroke="#8a5f22" stroke-width="1.4"></line><line x1="50" y1="36" x2="49.99999999999999" y2="24" stroke="#8a5f22" stroke-width="1.4"></line><line x1="59.89949493661166" y1="40.10050506338833" x2="68.38477631085023" y2="31.61522368914976" stroke="#8a5f22" stroke-width="1.4"></line>
+        <rect x="42" y="88" width="16" height="10" fill="#8a5f22"></rect>
+        <rect x="42" y="2" width="16" height="10" fill="#8a5f22"></rect>
+      </svg><div class="dimtag">2.2'×2.2'</div><div class="resize-handle"></div></div><div class="equip" data-id="datastation" style="left: 161px; top: 140px; width: 30.8px; height: 22.4px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Data / laptop station</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="18" y="14" width="64" height="42" rx="3" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect>
+        <path d="M10 80 L90 80 L80 60 L20 60 Z" fill="#eef1f2" stroke="#5b6b7a" stroke-width="1.8"></path>
+      </svg><div class="dimtag">2.2'×1.6'</div><div class="resize-handle"></div></div><div class="equip" data-id="harvest10" style="left: 378px; top: 385px; width: 98px; height: 56px; background: var(--plum-fill); border-color: rgb(107, 76, 122);"><div class="lbl">Millipore harvest skid — 10×1.1 m² capsules</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="4" width="92" height="92" rx="4" fill="#f2eaf4" stroke="#5a3d68" stroke-width="2.5"></rect>
+        <rect x="12" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="28" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="44" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="60" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="76" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect>
+      </svg><div class="dimtag">7'×4'</div><div class="resize-handle"></div></div><div class="equip" data-id="harvest5" style="left: 301px; top: 385px; width: 70px; height: 49px; background: var(--plum-fill); border-color: rgb(107, 76, 122);"><div class="lbl">Millipore harvest skid — 5×1.1 m² capsules</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="4" width="92" height="92" rx="4" fill="#f2eaf4" stroke="#5a3d68" stroke-width="2.5"></rect>
+        <rect x="12" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="28" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="44" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="60" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect><rect x="76" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"></rect>
+      </svg><div class="dimtag">5'×3.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="centrifuge" style="left: 343px; top: 301px; width: 70px; height: 63px; background: var(--amber-fill); border-color: rgb(185, 130, 47);"><div class="lbl">Alfa Laval continuous centrifuge (single-use)</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <circle cx="50" cy="50" r="42" fill="#f7eedb" stroke="#8a5f22" stroke-width="2.5"></circle>
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#8a5f22" stroke-width="1.4"></circle>
+        <line x1="64" y1="50" x2="76" y2="50" stroke="#8a5f22" stroke-width="1.4"></line><line x1="59.89949493661167" y1="59.89949493661166" x2="68.38477631085024" y2="68.38477631085024" stroke="#8a5f22" stroke-width="1.4"></line><line x1="50" y1="64" x2="50" y2="76" stroke="#8a5f22" stroke-width="1.4"></line><line x1="40.10050506338834" y1="59.89949493661167" x2="31.615223689149765" y2="68.38477631085024" stroke="#8a5f22" stroke-width="1.4"></line><line x1="36" y1="50" x2="24" y2="50" stroke="#8a5f22" stroke-width="1.4"></line><line x1="40.10050506338833" y1="40.10050506338834" x2="31.61522368914976" y2="31.615223689149765" stroke="#8a5f22" stroke-width="1.4"></line><line x1="50" y1="36" x2="49.99999999999999" y2="24" stroke="#8a5f22" stroke-width="1.4"></line><line x1="59.89949493661166" y1="40.10050506338833" x2="68.38477631085023" y2="31.61522368914976" stroke="#8a5f22" stroke-width="1.4"></line>
+        <rect x="42" y="88" width="16" height="10" fill="#8a5f22"></rect>
+        <rect x="42" y="2" width="16" height="10" fill="#8a5f22"></rect>
+      </svg><div class="dimtag">5'×4.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="safety" style="left: 112px; top: 322px; width: 42px; height: 28px; background: var(--slate-fill); border-color: rgb(91, 107, 122);"><div class="lbl">Handwash sink + eyewash station</div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="8" width="84" height="84" rx="6" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.2"></rect>
+        <ellipse cx="50" cy="58" rx="28" ry="20" fill="#fff" stroke="#5b6b7a" stroke-width="1.6"></ellipse>
+        <path d="M50 26 v14 M42 40 q8 -10 16 0" fill="none" stroke="#5b6b7a" stroke-width="2.4"></path>
+        <circle cx="50" cy="58" r="3" fill="#5b6b7a"></circle>
+      </svg><div class="dimtag">3'×2'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom1" style="left: 518px; top: 364px; width: 56px; height: 56px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Scale 1000 kg</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">4'×4'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom2" style="left: 518px; top: 182px; width: 42px; height: 42px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Scale 500 Kg</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">3'×3'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom3" style="left: 567px; top: 21px; width: 35px; height: 35px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Scale 150 kg</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">2.5'×2.5'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom4" style="left: 189px; top: 14px; width: 196px; height: 42px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Bench </div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">14'×3'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom5" style="left: 322px; top: 49px; width: 56px; height: 28px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Rocker 1 </div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">4'×2'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom6" style="left: 259px; top: 49px; width: 56px; height: 28px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Rocker 2</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">4'×2'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom7" style="left: 189px; top: 49px; width: 56px; height: 28px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Rocker 3</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">4'×2'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom8" style="left: 602px; top: 189px; width: 14px; height: 112px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">CO2/Air/N2/O2 gas manifold</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">1'×8'</div><div class="resize-handle"></div></div><div class="equip" data-id="custom9" style="left: 7px; top: 56px; width: 42px; height: 168px; background: rgb(219, 230, 238); border-color: rgb(44, 95, 138);"><div class="lbl">Consumables storage</div><svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"></rect></svg><div class="dimtag">3'×12'</div><div class="resize-handle"></div></div></div>
+    </div>
+    <div class="titleblock">
+      <div class="tb-head">FLOOR PLAN — UPSTREAM PD SUITE</div>
+      <table>
+        <tbody><tr><td class="label">Working area</td><td>1,409 SF</td></tr>
+        <tr><td class="label">Adjacent room</td><td>Consumable Sto. — RM 35267</td></tr>
+        <tr><td class="label">Scale</td><td>1 grid sq = 1 ft</td></tr>
+        <tr><td class="label">Drawn</td><td id="tbDate">Jul 10, 2026</td></tr>
+        <tr><td class="label">Status</td><td>Editable draft — verify vs. CAD</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('tbDate').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+
+const PPF = 14; // pixels per foot
+const STO_W = 11;     // RM 34166 (analytical storage) width, ft
+const MAIN_W = 44;    // main working room width, ft
+const H = 32;          // shared depth, ft
+const TOTAL_W = STO_W + MAIN_W;
+
+const stage = document.getElementById('stage');
+stage.style.width = (TOTAL_W*PPF)+'px';
+stage.style.height = (H*PPF)+'px';
+
+const bg = document.getElementById('bgSvg');
+bg.setAttribute('width', TOTAL_W*PPF);
+bg.setAttribute('height', H*PPF);
+bg.setAttribute('viewBox', `0 0 ${TOTAL_W*PPF} ${H*PPF}`);
+
+const equipLayer = document.getElementById('equipLayer');
+equipLayer.style.width = (MAIN_W*PPF)+'px';
+equipLayer.style.height = (H*PPF)+'px';
+equipLayer.style.left = (STO_W*PPF)+'px';
+
+function ft(v){ return v*PPF; }
+function pt(x,y){ return `${ft(x)},${ft(y)}`; }
+
+// ---------- Background: walls, notches, doors, storage room ----------
+let svgParts = [];
+
+// grid inside main room
+svgParts.push(`<defs>
+  <pattern id="grid" width="${PPF}" height="${PPF}" patternUnits="userSpaceOnUse">
+    <path d="M ${PPF} 0 L 0 0 0 ${PPF}" fill="none" stroke="#c7d5df" stroke-width="1"/>
+  </pattern>
+  <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <line x1="0" y1="0" x2="0" y2="8" stroke="#9aa7ae" stroke-width="2"/>
+  </pattern>
+</defs>`);
+
+// main room polygon (with 1x1 ft column notches top-right & bottom-right), offset by STO_W
+const mx = STO_W;
+const mainPoly = [
+  [mx+0,0],[mx+43,0],[mx+43,1],[mx+44,1],[mx+44,31],[mx+43,31],[mx+43,32],[mx+0,32]
+];
+svgParts.push(`<polygon points="${mainPoly.map(p=>pt(p[0],p[1])).join(' ')}" fill="url(#grid)" fill-opacity="1" stroke="#1c2b3a" stroke-width="3"/>`);
+svgParts.push(`<polygon points="${mainPoly.map(p=>pt(p[0],p[1])).join(' ')}" fill="none" stroke="#a4453a" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+
+// column notch hatch fill (small squares)
+svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(0)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"/>`);
+svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(31)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"/>`);
+svgParts.push(`<text x="${ft(mx+43.5)}" y="${ft(0.7)}" font-size="7" font-family="IBM Plex Mono" transform="rotate(90 ${ft(mx+43.5)} ${ft(0.7)})">COL</text>`);
+
+// label "1,409 SF"
+svgParts.push(`<text x="${ft(mx+22)}" y="${ft(16)}" text-anchor="middle" font-size="15" fill="#a4453a" font-family="IBM Plex Mono" font-weight="600">~1,409 SF</text>`);
+
+// doors: helper draws a gap + quarter circle swing
+function door(xFt,yFt,wFt,swingDir,label){
+  // swingDir: 'down','up' relative to wall, drawn as arc
+  const x0=ft(xFt), y0=ft(yFt), w=ft(wFt);
+  let arc='';
+  if(swingDir==='down'){
+    arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 1 ${x0+w} ${y0+w}" fill="none" stroke="#1c2b3a" stroke-width="1"/>
+           <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0+w}" stroke="#1c2b3a" stroke-width="1.6"/>`;
+  } else {
+    arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 0 ${x0+w} ${y0-w}" fill="none" stroke="#1c2b3a" stroke-width="1"/>
+           <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0-w}" stroke="#1c2b3a" stroke-width="1.6"/>`;
+  }
+  let lab = label ? `<text x="${x0+w/2}" y="${swingDir==='down'?y0-6:y0+14}" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#2c5f8a">${label}</text>` : '';
+  return `<rect x="${x0-1}" y="${y0-2}" width="${w+2}" height="4" fill="#f5f3ec"/>${arc}${lab}`;
+}
+
+svgParts.push(door(mx+8,0,3,'down',''));
+svgParts.push(door(mx+20,0,3,'down','CR'));
+svgParts.push(door(mx+29,0,3,'down',''));
+svgParts.push(door(mx+39,0,3,'down','CR'));
+svgParts.push(door(mx+18,32,3,'up',''));
+svgParts.push(door(mx+28,32,3,'up',''));
+// door connecting RM 34166 to main room
+svgParts.push(door(mx,17,3,'down',''));
+
+// dimension string (bottom)
+svgParts.push(`<text x="${ft(mx+22)}" y="${ft(32)+14}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a">44'-0" (approx.)</text>`);
+svgParts.push(`<text x="${ft(mx)-8}" y="${ft(16)}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a" transform="rotate(-90 ${ft(mx)-8} ${ft(16)})">32'-0" (approx.)</text>`);
+
+// ---------- RM 34166 — existing analytical storage (fixed, not editable) ----------
+// Top portion of this column is an existing shaft/feature outside either room's SF;
+// bottom portion is the actual 179 SF storage room per your site plan.
+svgParts.push(`<rect x="0" y="0" width="${ft(STO_W)}" height="${ft(16)}" fill="#cfd4d6" stroke="#5b6b7a" stroke-width="1.4"/>`);
+svgParts.push(`<line x1="0" y1="0" x2="${ft(STO_W)}" y2="${ft(16)}" stroke="#8a9299" stroke-width="1"/>`);
+svgParts.push(`<line x1="${ft(STO_W)}" y1="0" x2="0" y2="${ft(16)}" stroke="#8a9299" stroke-width="1"/>`);
+svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(8)}" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">EXISTING SHAFT/FEATURE</text>`);
+svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(9)}" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">(not in either room's SF)</text>`);
+
+svgParts.push(`<rect x="0" y="${ft(16)}" width="${ft(STO_W)}" height="${ft(16)}" fill="#eef1ee" stroke="#1c2b3a" stroke-width="3"/>`);
+svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(17.6)}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" font-weight="600">ANALYTICAL STORAGE</text>`);
+svgParts.push(`<rect x="${ft(1.2)}" y="${ft(18)}" width="${ft(4.4)}" height="${ft(2)}" fill="#fff" stroke="#2c5f8a"/>`);
+svgParts.push(`<text x="${ft(3.4)}" y="${ft(19.4)}" text-anchor="middle" font-size="8.5" font-family="IBM Plex Mono" fill="#2c5f8a">RM 34166</text>`);
+svgParts.push(`<text x="${ft(3.4)}" y="${ft(21)}" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#a4453a">179 sf</text>`);
+
+// existing labeled storage/tank positions per your plan
+const shelves = [
+  {x:6.8, y:16.6, w:1.4, h:1.3, label:'A5'},
+  {x:6.8, y:18.0, w:1.4, h:1.3, label:'A5'},
+  {x:6.8, y:19.4, w:1.4, h:1.3, label:'A3'},
+  {x:6.8, y:20.8, w:1.4, h:1.6, label:'TA-18'},
+  {x:6.8, y:22.5, w:1.4, h:1.6, label:'TA-10'},
+  {x:6.8, y:24.2, w:1.4, h:1.3, label:'A6'},
+  {x:6.8, y:25.6, w:1.4, h:1.3, label:'A7'},
+];
+shelves.forEach(s=>{
+  svgParts.push(`<rect x="${ft(s.x)}" y="${ft(s.y)}" width="${ft(s.w)}" height="${ft(s.h)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
+  svgParts.push(`<text x="${ft(s.x+s.w/2)}" y="${ft(s.y+s.h/2+0.15)}" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">${s.label}</text>`);
+});
+// floor-standing units A1, A2 at the bottom
+svgParts.push(`<rect x="${ft(0.6)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
+svgParts.push(`<text x="${ft(1.6)}" y="${ft(29.6)}" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A1</text>`);
+svgParts.push(`<rect x="${ft(2.8)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
+svgParts.push(`<text x="${ft(3.8)}" y="${ft(29.6)}" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A2</text>`);
+
+bg.innerHTML = svgParts.join('\n');
+
+// ---------- Equipment icons (schematic, top-down) ----------
+function iconSVG(kind){
+  switch(kind){
+    case 'bioreactor-large': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <ellipse cx="42" cy="55" rx="34" ry="34" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"/>
+        <circle cx="42" cy="55" r="9" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"/>
+        <circle cx="42" cy="20" r="3" fill="#2f5f5f"/>
+        <circle cx="30" cy="24" r="2.4" fill="#2f5f5f"/>
+        <circle cx="54" cy="24" r="2.4" fill="#2f5f5f"/>
+        <rect x="80" y="18" width="17" height="74" rx="2" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="2"/>
+        <rect x="83" y="24" width="11" height="8" fill="#2f5f5f"/>
+        <rect x="83" y="36" width="11" height="4" fill="#8fb5b3"/>
+        <rect x="83" y="43" width="11" height="4" fill="#8fb5b3"/>
+      </svg>`;
+    case 'bioreactor-bench': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <ellipse cx="36" cy="55" rx="28" ry="28" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"/>
+        <circle cx="36" cy="55" r="7" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.3"/>
+        <circle cx="36" cy="30" r="2.4" fill="#2f5f5f"/>
+        <rect x="70" y="30" width="26" height="48" rx="3" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="2"/>
+        <circle cx="83" cy="46" r="7" fill="#8fb5b3" stroke="#2f5f5f" stroke-width="1.3"/>
+        <circle cx="83" cy="66" r="5" fill="#c5dcda" stroke="#2f5f5f" stroke-width="1"/>
+        <line x1="64" y1="55" x2="70" y2="55" stroke="#2f5f5f" stroke-width="2"/>
+      </svg>`;
+    case 'atf': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="18" width="84" height="64" rx="8" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.5"/>
+        <circle cx="34" cy="50" r="15" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.5"/>
+        <circle cx="66" cy="50" r="10" fill="#d7e8e7" stroke="#2f5f5f" stroke-width="1.5"/>
+        <line x1="49" y1="50" x2="56" y2="50" stroke="#2f5f5f" stroke-width="2"/>
+      </svg>`;
+    case 'centrifuge': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <circle cx="50" cy="50" r="42" fill="#f7eedb" stroke="#8a5f22" stroke-width="2.5"/>
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#8a5f22" stroke-width="1.4"/>
+        ${Array.from({length:8}).map((_,i)=>{const a=i*Math.PI/4;const x1=50+14*Math.cos(a),y1=50+14*Math.sin(a),x2=50+26*Math.cos(a),y2=50+26*Math.sin(a);return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#8a5f22" stroke-width="1.4"/>`}).join('')}
+        <rect x="42" y="88" width="16" height="10" fill="#8a5f22"/>
+        <rect x="42" y="2" width="16" height="10" fill="#8a5f22"/>
+      </svg>`;
+    case 'harvest-skid': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="4" width="92" height="92" rx="4" fill="#f2eaf4" stroke="#5a3d68" stroke-width="2.5"/>
+        ${Array.from({length:5}).map((_,i)=>`<rect x="${12+i*16}" y="14" width="9" height="72" rx="4" fill="#e0cfe6" stroke="#5a3d68" stroke-width="1.4"/>`).join('')}
+      </svg>`;
+    case 'cart': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="10" y="10" width="80" height="66" rx="4" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"/>
+        <circle cx="20" cy="86" r="7" fill="#5b6b7a"/>
+        <circle cx="80" cy="86" r="7" fill="#5b6b7a"/>
+      </svg>`;
+    case 'gas': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="34" width="92" height="16" fill="#dfe3e5" stroke="#5b6b7a" stroke-width="1.4"/>
+        ${Array.from({length:4}).map((_,i)=>`<circle cx="${16+i*23}" cy="42" r="15" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2"/>`).join('')}
+      </svg>`;
+    case 'waste': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="12" y="12" width="76" height="76" rx="6" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.5"/>
+        <line x1="18" y1="18" x2="82" y2="82" stroke="#5b6b7a" stroke-width="1.4"/>
+        <line x1="82" y1="18" x2="18" y2="82" stroke="#5b6b7a" stroke-width="1.4"/>
+      </svg>`;
+    case 'gown': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="4" width="92" height="92" rx="6" fill="none" stroke="#5b6b7a" stroke-width="2" stroke-dasharray="6 4"/>
+        <circle cx="34" cy="34" r="9" fill="#c7cfd4"/><path d="M20 62 Q34 44 48 62 Z" fill="#c7cfd4"/>
+        <circle cx="66" cy="34" r="9" fill="#c7cfd4"/><path d="M52 62 Q66 44 80 62 Z" fill="#c7cfd4"/>
+      </svg>`;
+    case 'island': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="2" y="10" width="96" height="80" rx="16" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.5"/>
+        <rect x="10" y="18" width="80" height="64" rx="10" fill="none" stroke="#a9bccb" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <circle cx="20" cy="50" r="2.6" fill="#5b6b7a"/><circle cx="80" cy="50" r="2.6" fill="#5b6b7a"/>
+      </svg>`;
+    case 'analyzer': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="26" width="84" height="58" rx="6" fill="#eaf3f2" stroke="#2f5f5f" stroke-width="2.2"/>
+        <rect x="16" y="12" width="46" height="20" rx="3" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.6"/>
+        <circle cx="78" cy="55" r="8" fill="#cfe4e2" stroke="#2f5f5f" stroke-width="1.2"/>
+        <rect x="18" y="60" width="30" height="6" fill="#8fb5b3"/>
+      </svg>`;
+    case 'balance': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="10" y="10" width="80" height="80" rx="8" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.2"/>
+        <rect x="26" y="26" width="48" height="48" rx="4" fill="#fff" stroke="#5b6b7a" stroke-width="1.4"/>
+        <circle cx="50" cy="50" r="14" fill="#dde3e8" stroke="#5b6b7a" stroke-width="1.2"/>
+      </svg>`;
+    case 'bsc': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="4" y="8" width="92" height="84" rx="4" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.4"/>
+        <rect x="10" y="16" width="80" height="24" fill="#d6dde2" stroke="#5b6b7a" stroke-width="1.2"/>
+        <line x1="10" y1="40" x2="90" y2="40" stroke="#5b6b7a" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <path d="M14 50 L86 50" stroke="#8f9aa3" stroke-width="1"/>
+        <path d="M14 60 L86 60" stroke="#8f9aa3" stroke-width="1"/>
+        <path d="M14 70 L86 70" stroke="#8f9aa3" stroke-width="1"/>
+        <circle cx="50" cy="26" r="5" fill="#a9bccb"/>
+      </svg>`;
+    case 'freezer': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="10" y="4" width="80" height="92" rx="4" fill="#e7edf0" stroke="#5b6b7a" stroke-width="2.4"/>
+        <line x1="10" y1="50" x2="90" y2="50" stroke="#5b6b7a" stroke-width="1.6"/>
+        <rect x="44" y="14" width="6" height="26" fill="#5b6b7a"/>
+        <rect x="44" y="60" width="6" height="26" fill="#5b6b7a"/>
+      </svg>`;
+    case 'incubator': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="6" y="6" width="88" height="88" rx="6" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.4"/>
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#5b6b7a" stroke-width="1.6" stroke-dasharray="5 4"/>
+        <path d="M50 24 A26 26 0 0 1 76 50" fill="none" stroke="#5b6b7a" stroke-width="2.4"/>
+        <circle cx="50" cy="50" r="4" fill="#5b6b7a"/>
+      </svg>`;
+    case 'sink': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="8" y="8" width="84" height="84" rx="6" fill="#eef1f2" stroke="#5b6b7a" stroke-width="2.2"/>
+        <ellipse cx="50" cy="58" rx="28" ry="20" fill="#fff" stroke="#5b6b7a" stroke-width="1.6"/>
+        <path d="M50 26 v14 M42 40 q8 -10 16 0" fill="none" stroke="#5b6b7a" stroke-width="2.4"/>
+        <circle cx="50" cy="58" r="3" fill="#5b6b7a"/>
+      </svg>`;
+    case 'data': return `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="18" y="14" width="64" height="42" rx="3" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"/>
+        <path d="M10 80 L90 80 L80 60 L20 60 Z" fill="#eef1f2" stroke="#5b6b7a" stroke-width="1.8"/>
+      </svg>`;
+    default: return `<svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" fill="#dde3e8" stroke="#5b6b7a" stroke-width="2"/></svg>`;
+  }
+}
+
+const COLORS = {teal:'#3e7c7c', amber:'#b9822f', plum:'#6b4c7a', slate:'#5b6b7a', blue:'#2c5f8a'};
+const FILLS  = {teal:'var(--teal-fill)', amber:'var(--amber-fill)', plum:'var(--plum-fill)', slate:'var(--slate-fill)', blue:'#dbe6ee'};
+
+let items = [
+  {
+    "id": "sartorius500",
+    "name": "Sartorius BIOSTAT STR 500L + control tower",
+    "w": 7,
+    "h": 7.5,
+    "x": 16,
+    "y": 14.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "atf6",
+    "name": "ATF 6 (paired w/ 500L)",
+    "w": 2.5,
+    "h": 2.5,
+    "x": 23.5,
+    "y": 14.5,
+    "color": "teal",
+    "icon": "atf"
+  },
+  {
+    "id": "200L-a",
+    "name": "200L bioreactor A",
+    "w": 5,
+    "h": 5,
+    "x": 16.5,
+    "y": 6.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "50L-a",
+    "name": "50L bioreactor A",
+    "w": 3.5,
+    "h": 3,
+    "x": 16.5,
+    "y": 1.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "gasmanifold",
+    "name": "CO2/Air/N2/O2 gas manifold",
+    "w": 8,
+    "h": 1,
+    "x": 16,
+    "y": 0,
+    "color": "slate",
+    "icon": "gas"
+  },
+  {
+    "id": "bsc",
+    "name": "Biosafety cabinet (Class II)",
+    "w": 6,
+    "h": 3,
+    "x": 4,
+    "y": 25,
+    "color": "slate",
+    "icon": "bsc"
+  },
+  {
+    "id": "freezer",
+    "name": "-20\u00b0C/-80\u00b0C sample freezer",
+    "w": 3,
+    "h": 3,
+    "x": 0.5,
+    "y": 24.5,
+    "color": "slate",
+    "icon": "freezer"
+  },
+  {
+    "id": "incubator",
+    "name": "CO2 incubator / shaker",
+    "w": 3,
+    "h": 2.5,
+    "x": 0.5,
+    "y": 28.5,
+    "color": "slate",
+    "icon": "incubator"
+  },
+  {
+    "id": "islandA",
+    "name": "Existing island 1 \u2014 cell &amp; metabolite analytics",
+    "w": 6,
+    "h": 18,
+    "x": 7,
+    "y": 5.5,
+    "color": "slate",
+    "icon": "island"
+  },
+  {
+    "id": "vicell",
+    "name": "Vi-CELL BLU cell viability analyzer",
+    "w": 2.2,
+    "h": 2.2,
+    "x": 11.5,
+    "y": 13.5,
+    "color": "teal",
+    "icon": "analyzer"
+  },
+  {
+    "id": "nova",
+    "name": "Nova BioProfile FLEX2 (metabolite/gas)",
+    "w": 2,
+    "h": 2,
+    "x": 11.5,
+    "y": 18,
+    "color": "teal",
+    "icon": "analyzer"
+  },
+  {
+    "id": "benchcentrifuge",
+    "name": "Benchtop centrifuge",
+    "w": 2.2,
+    "h": 2.2,
+    "x": 6.5,
+    "y": 8.5,
+    "color": "amber",
+    "icon": "centrifuge"
+  },
+  {
+    "id": "datastation",
+    "name": "Data / laptop station",
+    "w": 2.2,
+    "h": 1.6,
+    "x": 13.5,
+    "y": 11.5,
+    "color": "blue",
+    "icon": "data"
+  },
+  {
+    "id": "harvest10",
+    "name": "Millipore harvest skid \u2014 10\u00d71.1 m\u00b2 capsules",
+    "w": 7,
+    "h": 4,
+    "x": 31,
+    "y": 27.5,
+    "color": "plum",
+    "icon": "harvest-skid"
+  },
+  {
+    "id": "harvest5",
+    "name": "Millipore harvest skid \u2014 5\u00d71.1 m\u00b2 capsules",
+    "w": 5,
+    "h": 3.5,
+    "x": 24,
+    "y": 27.5,
+    "color": "plum",
+    "icon": "harvest-skid"
+  },
+  {
+    "id": "centrifuge",
+    "name": "Alfa Laval continuous centrifuge (single-use)",
+    "w": 5,
+    "h": 4.5,
+    "x": 26,
+    "y": 22.5,
+    "color": "amber",
+    "icon": "centrifuge"
+  },
+  {
+    "id": "safety",
+    "name": "Handwash sink + eyewash station",
+    "w": 3,
+    "h": 2,
+    "x": 10,
+    "y": 23.5,
+    "color": "slate",
+    "icon": "sink"
+  },
+  {
+    "id": "custom1",
+    "name": "Scale 1000 kg",
+    "w": 4,
+    "h": 4,
+    "x": 40,
+    "y": 26,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom2",
+    "name": "Scale 500 Kg",
+    "w": 3,
+    "h": 3,
+    "x": 35,
+    "y": 7,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom3",
+    "name": "Scale 150 kg",
+    "w": 2.5,
+    "h": 2.5,
+    "x": 35,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom4",
+    "name": "Bench ",
+    "w": 3,
+    "h": 12,
+    "x": 40,
+    "y": 5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom5",
+    "name": "Rocker 1 ",
+    "w": 4,
+    "h": 2,
+    "x": 25,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom6",
+    "name": "Rocker 2",
+    "w": 4,
+    "h": 2,
+    "x": 25,
+    "y": 4,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom7",
+    "name": "Rocker 3",
+    "w": 4,
+    "h": 2,
+    "x": 30,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom8",
+    "name": "CO2/Air/N2/O2 gas manifold",
+    "w": 1,
+    "h": 8,
+    "x": 43,
+    "y": 18,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom9",
+    "name": "Consumables storage",
+    "w": 3,
+    "h": 12,
+    "x": 0.5,
+    "y": 4,
+    "color": "blue",
+    "icon": "default"
+  }
+];
+
+let selectedId=null, dragState=null, resizeState=null;
+
+function renderRoom(){
+  equipLayer.innerHTML='';
+  items.forEach(it=>{
+    const el=document.createElement('div');
+    el.className='equip'+(it.id===selectedId?' selected':'');
+    el.style.left=ft(it.x)+'px'; el.style.top=ft(it.y)+'px';
+    el.style.width=ft(it.w)+'px'; el.style.height=ft(it.h)+'px';
+    el.style.background=FILLS[it.color]||'#eee';
+    el.style.borderColor=COLORS[it.color]||'#333';
+    el.dataset.id=it.id;
+    el.innerHTML=`<div class="lbl">${it.name}</div>${iconSVG(it.icon)}<div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
+    el.addEventListener('mousedown',(e)=>startDrag(e,it));
+    el.querySelector('.resize-handle').addEventListener('mousedown',(e)=>{e.stopPropagation();startResize(e,it);});
+    equipLayer.appendChild(el);
+  });
+  renderList();
+  updateStats();
+}
+
+function startDrag(e,it){
+  e.preventDefault(); selectedId=it.id;
+  dragState={it,startX:e.clientX,startY:e.clientY,origX:it.x,origY:it.y};
+  document.addEventListener('mousemove',onDrag); document.addEventListener('mouseup',endDrag);
+  renderRoom();
+}
+function onDrag(e){
+  if(!dragState) return;
+  const {it,startX,startY,origX,origY}=dragState;
+  let nx=Math.round((origX+(e.clientX-startX)/PPF)*2)/2;
+  let ny=Math.round((origY+(e.clientY-startY)/PPF)*2)/2;
+  nx=Math.max(0,Math.min(MAIN_W-it.w,nx)); ny=Math.max(0,Math.min(H-it.h,ny));
+  it.x=nx; it.y=ny; renderRoom();
+}
+function endDrag(){dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);}
+
+function startResize(e,it){
+  e.preventDefault(); selectedId=it.id;
+  resizeState={it,startX:e.clientX,startY:e.clientY,origW:it.w,origH:it.h};
+  document.addEventListener('mousemove',onResize); document.addEventListener('mouseup',endResize);
+}
+function onResize(e){
+  if(!resizeState) return;
+  const {it,startX,startY,origW,origH}=resizeState;
+  let nw=Math.max(1,Math.round((origW+(e.clientX-startX)/PPF)*2)/2);
+  let nh=Math.max(1,Math.round((origH+(e.clientY-startY)/PPF)*2)/2);
+  nw=Math.min(nw,MAIN_W-it.x); nh=Math.min(nh,H-it.y);
+  it.w=nw; it.h=nh; renderRoom();
+}
+function endResize(){resizeState=null;document.removeEventListener('mousemove',onResize);document.removeEventListener('mouseup',endResize);}
+
+function renderList(){
+  const list=document.getElementById('itemList'); list.innerHTML='';
+  items.forEach(it=>{
+    const row=document.createElement('div'); row.className='item-row';
+    row.innerHTML=`<span class="swatch" style="background:${COLORS[it.color]}"></span>
+      <input type="text" value="${it.name}" data-id="${it.id}" class="nameInput">
+      <input type="number" step="0.5" value="${it.w}" class="wInput" data-id="${it.id}">
+      <span class="dim">×</span>
+      <input type="number" step="0.5" value="${it.h}" class="hInput" data-id="${it.id}">
+      <button class="icon-btn rotate-btn" data-id="${it.id}">↻</button>
+      <button class="icon-btn" data-id="${it.id}">✕</button>`;
+    row.addEventListener('click',(e)=>{ if(e.target.tagName!=='INPUT'){selectedId=it.id;renderRoom();} });
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.nameInput').forEach(inp=>inp.addEventListener('change',e=>{items.find(i=>i.id===e.target.dataset.id).name=e.target.value;renderRoom();}));
+  list.querySelectorAll('.wInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.w=Math.max(0.5,parseFloat(e.target.value)||it.w);it.x=Math.min(it.x,MAIN_W-it.w);renderRoom();}));
+  list.querySelectorAll('.hInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.h=Math.max(0.5,parseFloat(e.target.value)||it.h);it.y=Math.min(it.y,H-it.h);renderRoom();}));
+  list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{const it=items.find(i=>i.id===e.target.dataset.id);const t=it.w;it.w=it.h;it.h=t;it.x=Math.min(it.x,MAIN_W-it.w);it.y=Math.min(it.y,H-it.h);renderRoom();}));
+  list.querySelectorAll('.icon-btn:not(.rotate-btn)').forEach(btn=>btn.addEventListener('click',e=>{items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
+}
+
+function updateStats(){
+  const used=items.reduce((s,it)=>s+it.w*it.h,0);
+  const total=1409;
+  document.getElementById('usedArea').textContent=Math.round(used).toLocaleString()+' SF';
+  document.getElementById('openArea').textContent=Math.round(total-used).toLocaleString()+' SF';
+  const pct=Math.min(100,(used/total*100));
+  document.getElementById('barFill').style.width=pct+'%';
+  document.getElementById('pctLabel').textContent=pct.toFixed(1)+'% occupied';
+}
+
+let customCounter=1;
+function addCustomItem(){
+  const id='custom'+(customCounter++);
+  items.push({id,name:'New item',w:3,h:3,x:0,y:0,color:'blue',icon:'default'});
+  selectedId=id; renderRoom();
+}
+
+function exportLayout(){
+  selectedId = null;
+  renderRoom();
+  const itemsJson = JSON.stringify(items, null, 2);
+  let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  html = html.replace(/let items\s*=\s*\[[\s\S]*?\n\];/, 'let items = ' + itemsJson + ';');
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'upstream_lab_layout_shared.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+equipLayer.addEventListener('mousedown',(e)=>{ if(e.target===equipLayer){selectedId=null;renderRoom();} });
+
+renderRoom();
+</script>
+
+
+</body></html>

@@ -1,8 +1,28 @@
 activity_name,step_order,station_id,notes
-EXAMPLE - Daily viability sampling,1,sartorius500,Pull sample
-EXAMPLE - Daily viability sampling,2,vicell,Run viability check
-EXAMPLE - Daily viability sampling,3,datastation,Log result
-EXAMPLE - Harvest to centrifuge,1,sartorius500,Start harvest
-EXAMPLE - Harvest to centrifuge,2,harvest10,Filter
-EXAMPLE - Harvest to centrifuge,3,centrifuge,Spin
-EXAMPLE - Harvest to centrifuge,4,freezer,Store sample
+Daily sampling,1,BIOREACTOR,Pull sample from the active bioreactor (modeled for each of 500L/200L/50L)
+Daily sampling,2,islandA,Run viability + metabolite analysis (Vi-CELL / Nova on island 1)
+Daily sampling,3,datastation,Log result
+Daily sampling,4,BIOREACTOR,Return to bioreactor
+Harvest to centrifuge,1,sartorius500,Start harvest from 500L (connected to skid + collection tank)
+Harvest to centrifuge,2,harvest10,Depth/clarification filtration skid
+Harvest to centrifuge,3,scale1000,Collection tank on 1000 kg scale (PROXY - no explicit collection-tank station yet)
+Harvest to centrifuge,4,centrifuge,Continuous centrifuge (Alfa Laval)
+passage shake flask,1,incubator,Pull flask from CO2 incubator/shaker
+passage shake flask,2,freezer,"Pull media (PROXY - narrative says ""refrigerator""; no fridge station exists yet)"
+passage shake flask,3,bsc,Sample/passage in biosafety cabinet
+passage shake flask,4,islandA,Analysis
+passage shake flask,5,datastation,Log result
+passage shake flask,6,bsc,Return to BSC
+passage shake flask,7,incubator,Flask back into incubator
+passage shake flask,8,freezer,Media back to fridge (PROXY)
+inoculate rocker,1,incubator,Pull flask
+inoculate rocker,2,freezer,Pull media (PROXY - fridge)
+inoculate rocker,3,bsc,Sample/prep in BSC
+inoculate rocker,4,islandA,Analysis
+inoculate rocker,5,datastation,Log result
+inoculate rocker,6,bsc,Return to BSC
+inoculate rocker,7,rocker1,Connect flask to rocker (seed)
+inoculate bioreactor,1,rocker1,Pull sample from rocker
+inoculate bioreactor,2,islandA,Analysis
+inoculate bioreactor,3,datastation,Log result
+inoculate bioreactor,4,50L-a,Connect rocker to bioreactor (seed 50L; adjust if a different scale)

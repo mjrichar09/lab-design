@@ -51,14 +51,21 @@ related process steps.
 - [x] Stand up fill-in templates for workflow data (`workflows/`) to collect
       activity sequences, frequency, and people-per-trip — needed to compute
       walking distance. Waiting on these to be filled in.
-- [ ] Model the actual process flow sequence (inoculation → bioreactor →
-      harvest → centrifugation → sample analysis) and lay out equipment in
-      that order to minimize backtracking.
-- [ ] Compute the weighted travel (From-To) matrix from `workflows/` data
+- [x] Model the actual process flow sequence (inoculation → bioreactor →
+      harvest → centrifugation → sample analysis). Captured in
+      `workflows/activity_steps_template.csv`.
+- [x] Compute the weighted travel (From-To) matrix from `workflows/` data
       and current layout coordinates; identify highest-weight station pairs.
-- [ ] Estimate walking distances between linked steps (e.g. bioreactor to
-      harvest skid to centrifuge to analytics island) and iterate placement
-      to minimize them.
+      See `workflows/walking_distance_analysis.md` — daily sampling is ~85%
+      of foot traffic; bioreactor↔island legs dominate.
+- [x] Estimate walking distances between linked steps and iterate placement
+      to minimize them. Produced `layouts/upstream_lab_layout_v3.html`
+      (~57% less walking, same footprint). **Pending user confirmation of
+      assumptions** (media fridge, per-trip bioreactor targets).
+- [ ] Add a dedicated media refrigerator to the prep cluster (referenced by
+      3 workflows, currently proxied by the freezer) and re-run the analysis.
+- [ ] Confirm which specific bioreactor/rocker/skid each activity targets,
+      then re-run `compute_walking_distance.py`.
 - [ ] Check aisle widths meet ergonomic/code minimums for cart and personnel
       traffic, especially at pinch points near doors.
 - [ ] Re-check the 33.9% occupied-area figure once footprints/clearances are
