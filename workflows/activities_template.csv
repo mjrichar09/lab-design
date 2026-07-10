@@ -1,3 +1,6 @@
 activity_name,frequency_count,frequency_unit,people_per_trip,path_type,home_base_station_id,notes
-EXAMPLE - Daily viability sampling,3,per_day,1,hub_and_spoke,datastation,"Sample pulled from bioreactor, walked to island for analysis, result logged at data station"
-EXAMPLE - Harvest to centrifuge,1,per_run,2,circuit,,"Full harvest circuit at end of a run"
+Daily sampling,2,per_day,1,hub_and_spoke,datastation,"Sample pulled from bioreactor, walked to island for analysis, result logged at data station"
+Harvest to centrifuge,1,per_run,2,circuit,,Full harvest circuit at end of a run. Bioreactor connected to harvest skid and collection tank
+passage shake flask,2,per_week,1,hub_and_spoke,datastation,"flask pulled from incubator, media pulled from refrigerator, put in bsc, sampled, walked to island for analysis, logged result in datastation, walked back to bsc, flask put back in incubator, media put back in fridge"
+inoculate rocker,1,per_run,1,hub_and_spoke,datastation,"flask pulled from incubator, media pulled from refrigerator, put in bsc, sampled, walked to island for analysis, logged result in datastation, walked back to bsc, flask connected to rocker"
+inoculate bioreactor,1,per_run,2,circuit,datastation,"Sample pulled from rocker, walked to island for analysis, result logged at data station, rocker connected to bioreactor"
