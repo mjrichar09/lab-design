@@ -411,10 +411,22 @@
   .hint{font-size:10.8px;color:var(--slate);margin-top:8px;line-height:1.5;}
   .note-box{font-size:10.8px;background:var(--slate-fill);border:1px solid var(--line);border-radius:5px;padding:8px;line-height:1.5;margin-top:6px;}
 
+  /* Walking-distance box */
+  .walkbox{border:1px solid var(--line);border-radius:5px;padding:8px 9px;margin:8px 0 4px;background:#fff;}
+  .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:7px;}
+  .walkbox .wb-total b{font-size:15px;font-family:'IBM Plex Mono',monospace;}
+  .walk-row{display:flex;align-items:center;gap:6px;font-size:10.6px;padding:2.5px 0;cursor:pointer;}
+  .walk-row input{cursor:pointer;margin:0;flex:none;}
+  .walk-row .wswatch{width:16px;height:4px;border-radius:2px;flex:none;}
+  .walk-row .wname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .walk-row .wft{font-family:'IBM Plex Mono',monospace;color:var(--slate);flex:none;}
+  .walkbox .wb-hint{font-size:9.6px;color:var(--slate);margin-top:6px;line-height:1.4;}
+
   .canvas-wrap{flex:1;padding:34px;overflow:auto;}
   #stage{position:relative;}
   #bgSvg{position:absolute;top:0;left:0;}
   #equipLayer{position:absolute;top:0;left:0;}
+  #pathLayer{position:absolute;top:0;pointer-events:none;z-index:4;overflow:visible;}
   .equip{
     position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:5px;
     cursor:grab;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,0.15);
@@ -460,6 +472,12 @@
     <div class="stat-row"><span>Open floor / aisles</span><b id="openArea">932 SF</b></div>
     <div class="bar-track"><div class="bar-fill" id="barFill" style="width: 33.868%;"></div></div>
     <div class="stat-row"><span id="pctLabel">33.9% occupied</span><span></span></div>
+
+    <div class="walkbox">
+      <div class="wb-total"><span>Walking distance / day</span><b id="walkTotal">— ft</b></div>
+      <div id="walkList"></div>
+      <div class="wb-hint">Check an activity to draw its walk path on the plan. Distances update live as you move equipment.</div>
+    </div>
 
     <div class="toolbar">
       <button onclick="location.reload()">Reset layout</button>
@@ -1369,6 +1387,8 @@ function renderRoom(){
   });
   renderList();
   updateStats();
+  renderPaths();
+  updateWalk();
 }
 
 function startDrag(e,it){
@@ -1459,6 +1479,123 @@ function exportLayout(){
 
 equipLayer.addEventListener('mousedown',(e)=>{ if(e.target===equipLayer){selectedId=null;renderRoom();} });
 
+/* ---------- Walking-distance / travel-path overlay ---------- */
+// Activities mirror workflows/compute_walking_distance.py. Station refs use the
+// layout's item ids (e.g. custom1 = 1000 kg scale, custom5 = Rocker 1).
+// tripsPerDay & people are applied to EACH path in the activity.
+const RUNS_PER_DAY = 3/30.4;   // 3 runs/month, from run_cadence
+const ACTIVITIES = [
+  { id:'sampling', name:'Daily sampling', color:'#e4572e', tripsPerDay:2, people:1,
+    paths:[ ['sartorius500','islandA','datastation','sartorius500'],
+            ['200L-a','islandA','datastation','200L-a'],
+            ['50L-a','islandA','datastation','50L-a'] ] },
+  { id:'harvest', name:'Harvest → centrifuge', color:'#1f9e89', tripsPerDay:RUNS_PER_DAY, people:2,
+    paths:[ ['sartorius500','harvest10','custom1','centrifuge'] ] },
+  { id:'passage', name:'Passage shake flask', color:'#8a4fff', tripsPerDay:2/7, people:1,
+    paths:[ ['incubator','freezer','bsc','islandA','datastation','bsc','incubator','freezer'] ] },
+  { id:'inocRocker', name:'Inoculate rocker', color:'#d68a00', tripsPerDay:RUNS_PER_DAY, people:1,
+    paths:[ ['incubator','freezer','bsc','islandA','datastation','bsc','custom5'] ] },
+  { id:'inocBR', name:'Inoculate bioreactor', color:'#2f6fed', tripsPerDay:RUNS_PER_DAY, people:2,
+    paths:[ ['custom5','islandA','datastation','50L-a'] ] },
+];
+const shownActs = new Set();
+
+// path overlay svg, aligned with equipLayer (which is offset by STO_W)
+const SVGNS='http://www.w3.org/2000/svg';
+const pathLayer=document.createElementNS(SVGNS,'svg');
+pathLayer.id='pathLayer';
+pathLayer.setAttribute('width', MAIN_W*PPF);
+pathLayer.setAttribute('height', H*PPF);
+pathLayer.style.left=(STO_W*PPF)+'px';
+stage.appendChild(pathLayer);
+
+function centroidPx(id){
+  const it=items.find(i=>i.id===id);
+  if(!it) return null;
+  return [ ft(it.x+it.w/2), ft(it.y+it.h/2) ];
+}
+function pathLenFt(seq){
+  let d=0;
+  for(let i=0;i<seq.length-1;i++){
+    const a=items.find(x=>x.id===seq[i]), b=items.find(x=>x.id===seq[i+1]);
+    if(!a||!b) return null;
+    d+=Math.hypot((a.x+a.w/2)-(b.x+b.w/2),(a.y+a.h/2)-(b.y+b.h/2));
+  }
+  return d;
+}
+function activityFtPerDay(act){
+  let sum=0;
+  for(const seq of act.paths){
+    const d=pathLenFt(seq);
+    if(d===null) return null;      // a station was deleted
+    sum+=d*act.tripsPerDay*act.people;
+  }
+  return sum;
+}
+function updateWalk(){
+  let total=0, ok=true;
+  for(const act of ACTIVITIES){
+    const f=activityFtPerDay(act);
+    if(f===null){ ok=false; } else { total+=f; }
+    const lbl=document.getElementById('wft-'+act.id);
+    if(lbl) lbl.textContent = f===null ? 'n/a' : Math.round(f)+' ft';
+  }
+  document.getElementById('walkTotal').textContent = Math.round(total).toLocaleString()+' ft'+(ok?'':' *');
+}
+function renderWalkList(){
+  const list=document.getElementById('walkList');
+  list.innerHTML='';
+  ACTIVITIES.forEach(act=>{
+    const row=document.createElement('label');
+    row.className='walk-row';
+    row.innerHTML=`<input type="checkbox" data-act="${act.id}" ${shownActs.has(act.id)?'checked':''}>
+      <span class="wswatch" style="background:${act.color}"></span>
+      <span class="wname">${act.name}</span>
+      <span class="wft" id="wft-${act.id}">—</span>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change',e=>{
+      const id=e.target.dataset.act;
+      if(e.target.checked) shownActs.add(id); else shownActs.delete(id);
+      renderPaths();
+    });
+  });
+}
+function renderPaths(){
+  if(!pathLayer) return;
+  pathLayer.innerHTML='';
+  const active=ACTIVITIES.filter(a=>shownActs.has(a.id));
+  active.forEach((act,idx)=>{
+    // small diagonal nudge per activity so coincident legs stay distinguishable
+    const off=(idx-(active.length-1)/2)*3;
+    act.paths.forEach(seq=>{
+      const pts=seq.map(centroidPx);
+      if(pts.some(p=>p===null)) return;
+      const poly=document.createElementNS(SVGNS,'polyline');
+      poly.setAttribute('points', pts.map(p=>`${p[0]+off},${p[1]+off}`).join(' '));
+      poly.setAttribute('fill','none');
+      poly.setAttribute('stroke',act.color);
+      poly.setAttribute('stroke-width','3');
+      poly.setAttribute('stroke-opacity','0.85');
+      poly.setAttribute('stroke-linejoin','round');
+      poly.setAttribute('stroke-linecap','round');
+      pathLayer.appendChild(poly);
+      // node dots; ring the first stop to mark the start
+      pts.forEach((p,i)=>{
+        const c=document.createElementNS(SVGNS,'circle');
+        c.setAttribute('cx',p[0]+off); c.setAttribute('cy',p[1]+off);
+        c.setAttribute('r', i===0?4.5:3);
+        c.setAttribute('fill', i===0?'#fff':act.color);
+        c.setAttribute('stroke',act.color);
+        c.setAttribute('stroke-width', i===0?2.5:1);
+        pathLayer.appendChild(c);
+      });
+    });
+  });
+}
+
+renderWalkList();
 renderRoom();
 </script>
 
