@@ -73,8 +73,27 @@ related process steps.
       space is needed.
 - [ ] Produce 2-3 alternative layout options (e.g. process-flow-optimized vs.
       minimal-disruption-to-existing-islands) and compare tradeoffs.
+- [ ] Respect "must-stay-together" adjacency constraints in any optimization.
+      Some equipment has to remain paired/co-located regardless of walking-
+      distance math — e.g. **each floor scale next to its respective
+      bioreactor/collection tank**, ATF next to its bioreactor, gas manifold
+      reachable by the reactors it feeds. Capture the full list of hard
+      adjacency (and any minimum-separation) constraints and enforce them so
+      the optimizer can't split pairs apart to shave a few feet.
 
-## 5. Sign-off
+## 5. Layout tool / editor improvements
+
+- [ ] Make equipment rotatable. A ↻ button already swaps width/height (90°
+      steps); extend to free rotation at arbitrary angles (or at least
+      45° increments) with the footprint and label rotating too, so
+      angled/island equipment can be represented accurately.
+- [ ] Lock size by default to prevent accidental resize while dragging. The
+      corner resize handle is too easy to grab mid-move — separate "move" from
+      "resize" (e.g. resize only via an explicit toggle/handle or the sidebar
+      W×H fields), so dragging never changes dimensions unintentionally.
+      Keep an intentional way to edit size on purpose.
+
+## 6. Sign-off
 
 - [ ] Review with EHS for safety/egress compliance.
 - [ ] Review with facilities/engineering against CAD.
