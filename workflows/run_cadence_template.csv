@@ -1,4 +1,4 @@
 field,value,notes
-avg_run_length_days,,"How many days does a typical production run last, start to finish?"
-runs_per_month,,"How many runs typically happen per month?"
-max_concurrent_runs,,"Can more than one run be in progress in this room at the same time? If so, how many at once?"
+avg_run_length_days,14,"How many days does a typical production run last, start to finish?"
+runs_per_month,3,"How many runs typically happen per month?"
+max_concurrent_runs,3,"Can more than one run be in progress in this room at the same time? If so, how many at once?"
