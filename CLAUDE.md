@@ -17,6 +17,7 @@ update cadence matters (see Preferences below).
 | `TODO.md` | Start of every work session — the prioritized backlog + recorded recommendations | A work item completes or a decision lands — batched at feature-completion, not per-edit |
 | `workflows/README.md` | Working with the workflow data (activities, step sequences, run cadence) that feeds the analysis | The data templates / schema change |
 | `workflows/walking_distance_analysis.md` | Reviewing methodology, assumptions, or results of the walking-distance work | A layout or the workflow data changes and the analysis is re-run |
+| `workflows/equipment_footprints.md` | Checking/refining equipment dimensions against manufacturer spec sheets | Real spec-sheet footprints are confirmed or applied to a layout |
 
 Git history + PR descriptions carry everything else; don't duplicate what a
 commit message already says.
