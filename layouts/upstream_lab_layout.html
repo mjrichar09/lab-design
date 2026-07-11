@@ -385,6 +385,9 @@
   header{padding:20px 28px 12px;border-bottom:2px solid var(--ink);}
   header h1{font-size:21px;margin:0 0 4px;}
   header .sub{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--blue);}
+  .preset-picker{margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .preset-picker label{color:var(--ink);font-weight:600;margin-right:6px;}
+  .preset-picker select{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 6px;border:1px solid var(--ink);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;}
   .app{display:flex;align-items:flex-start;}
   .sidebar{width:330px;flex-shrink:0;padding:16px 18px 40px;border-right:2px solid var(--ink);min-height:calc(100vh - 84px);background:var(--white);overflow-y:auto;}
   .sidebar h2{font-size:11.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--blue);border-bottom:1px solid var(--line);padding-bottom:6px;margin:16px 0 8px;}
@@ -471,6 +474,7 @@
 <header>
   <h1>Upstream Process Development Suite — traced to provided site plan</h1>
   <div class="sub">1,409 SF working area + adjacent RM 34166 (analytical storage) &nbsp;|&nbsp; drag/resize equipment &nbsp;|&nbsp; storage room shown for reference, not editable</div>
+  <div class="preset-picker"><label for="presetSelect">Layout preset</label><select id="presetSelect"></select></div>
 </header>
 
 <div class="app">
@@ -1122,7 +1126,7 @@ function iconSVG(kind){
 const COLORS = {teal:'#3e7c7c', amber:'#b9822f', plum:'#6b4c7a', slate:'#5b6b7a', blue:'#2c5f8a'};
 const FILLS  = {teal:'var(--teal-fill)', amber:'var(--amber-fill)', plum:'var(--plum-fill)', slate:'var(--slate-fill)', blue:'#dbe6ee'};
 
-let items = [
+const ITEMS_V2 = [
   {
     "id": "sartorius500",
     "name": "Sartorius BIOSTAT STR 500L + control tower",
@@ -1394,6 +1398,284 @@ let items = [
     "icon": "freezer"
   }
 ];
+const ITEMS_V3 = [
+  {
+    "id": "sartorius500",
+    "name": "Sartorius BIOSTAT STR 500L + control tower",
+    "w": 7,
+    "h": 7.5,
+    "x": 16,
+    "y": 14.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "atf6",
+    "name": "ATF 6 (paired w/ 500L)",
+    "w": 2.5,
+    "h": 2.5,
+    "x": 23.5,
+    "y": 14.5,
+    "color": "teal",
+    "icon": "atf"
+  },
+  {
+    "id": "200L-a",
+    "name": "200L bioreactor A",
+    "w": 5,
+    "h": 5,
+    "x": 16.5,
+    "y": 6.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "50L-a",
+    "name": "50L bioreactor A",
+    "w": 3.5,
+    "h": 3,
+    "x": 16.5,
+    "y": 1.5,
+    "color": "teal",
+    "icon": "bioreactor-large"
+  },
+  {
+    "id": "gasmanifold",
+    "name": "CO2/Air/N2/O2 gas manifold",
+    "w": 8,
+    "h": 1,
+    "x": 16,
+    "y": 0,
+    "color": "slate",
+    "icon": "gas"
+  },
+  {
+    "id": "bsc",
+    "name": "Biosafety cabinet (Class II)",
+    "w": 6,
+    "h": 3,
+    "x": 4,
+    "y": 25,
+    "color": "slate",
+    "icon": "bsc"
+  },
+  {
+    "id": "freezer",
+    "name": "-20°C/-80°C sample freezer",
+    "w": 3,
+    "h": 3,
+    "x": 0.5,
+    "y": 24.5,
+    "color": "slate",
+    "icon": "freezer"
+  },
+  {
+    "id": "incubator",
+    "name": "CO2 incubator / shaker",
+    "w": 3,
+    "h": 2.5,
+    "x": 0.5,
+    "y": 28.5,
+    "color": "slate",
+    "icon": "incubator"
+  },
+  {
+    "id": "islandA",
+    "name": "Existing island 1 — cell &amp; metabolite analytics",
+    "w": 6,
+    "h": 18,
+    "x": 7,
+    "y": 5.5,
+    "color": "slate",
+    "icon": "island"
+  },
+  {
+    "id": "vicell",
+    "name": "Vi-CELL BLU cell viability analyzer",
+    "w": 2.2,
+    "h": 2.2,
+    "x": 11.5,
+    "y": 13.5,
+    "color": "teal",
+    "icon": "analyzer"
+  },
+  {
+    "id": "nova",
+    "name": "Nova BioProfile FLEX2 (metabolite/gas)",
+    "w": 2,
+    "h": 2,
+    "x": 11.5,
+    "y": 18,
+    "color": "teal",
+    "icon": "analyzer"
+  },
+  {
+    "id": "benchcentrifuge",
+    "name": "Benchtop centrifuge",
+    "w": 2.2,
+    "h": 2.2,
+    "x": 6.5,
+    "y": 8.5,
+    "color": "amber",
+    "icon": "centrifuge"
+  },
+  {
+    "id": "datastation",
+    "name": "Data / laptop station",
+    "w": 2.2,
+    "h": 1.6,
+    "x": 13.5,
+    "y": 11.5,
+    "color": "blue",
+    "icon": "data"
+  },
+  {
+    "id": "harvest10",
+    "name": "Millipore harvest skid — 10×1.1 m² capsules",
+    "w": 7,
+    "h": 4,
+    "x": 31,
+    "y": 27.5,
+    "color": "plum",
+    "icon": "harvest-skid"
+  },
+  {
+    "id": "harvest5",
+    "name": "Millipore harvest skid — 5×1.1 m² capsules",
+    "w": 5,
+    "h": 3.5,
+    "x": 24,
+    "y": 27.5,
+    "color": "plum",
+    "icon": "harvest-skid"
+  },
+  {
+    "id": "centrifuge",
+    "name": "Alfa Laval continuous centrifuge (single-use)",
+    "w": 5,
+    "h": 4.5,
+    "x": 26,
+    "y": 22.5,
+    "color": "amber",
+    "icon": "centrifuge"
+  },
+  {
+    "id": "safety",
+    "name": "Handwash sink + eyewash station",
+    "w": 3,
+    "h": 2,
+    "x": 10,
+    "y": 23.5,
+    "color": "slate",
+    "icon": "sink"
+  },
+  {
+    "id": "custom1",
+    "name": "Scale 1000 kg",
+    "w": 4,
+    "h": 4,
+    "x": 40,
+    "y": 26,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom2",
+    "name": "Scale 500 Kg",
+    "w": 3,
+    "h": 3,
+    "x": 35,
+    "y": 7,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom3",
+    "name": "Scale 150 kg",
+    "w": 2.5,
+    "h": 2.5,
+    "x": 35,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom4",
+    "name": "Bench ",
+    "w": 3,
+    "h": 12,
+    "x": 40,
+    "y": 5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom5",
+    "name": "Rocker 1 ",
+    "w": 4,
+    "h": 2,
+    "x": 25,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom6",
+    "name": "Rocker 2",
+    "w": 4,
+    "h": 2,
+    "x": 25,
+    "y": 4,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom7",
+    "name": "Rocker 3",
+    "w": 4,
+    "h": 2,
+    "x": 30,
+    "y": 1.5,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom8",
+    "name": "CO2/Air/N2/O2 gas manifold",
+    "w": 1,
+    "h": 8,
+    "x": 43,
+    "y": 18,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "custom9",
+    "name": "Consumables storage",
+    "w": 3,
+    "h": 12,
+    "x": 0.5,
+    "y": 4,
+    "color": "blue",
+    "icon": "default"
+  },
+  {
+    "id": "fridge",
+    "name": "Media refrigerator",
+    "w": 2.5,
+    "h": 3,
+    "x": 4,
+    "y": 28.5,
+    "color": "slate",
+    "icon": "freezer"
+  }
+];
+const LAYOUTS = {
+  v2: {label:"v2 — as provided (traced site plan)", title:"Upstream Process Development Suite — Floor Plan (v2)", heading:"Upstream Process Development Suite — traced to provided site plan", note:"<b>Updated from your actual site plan:</b> the green \"ANALYTICAL\" zone is removed — that floor is now open and folded into the working layout below. I kept your <b>3 existing islands</b> in roughly their real positions (evenly spaced, aligned with the two lower doors so the aisles between islands double as the walk paths to those doors) instead of adding new casework, since they're already built with utility drops.\n      <br><br>\n      <b>Island assignments:</b> Island 1 — Vi-CELL BLU + Nova BioProfile FLEX2. Island 2 (center) — benchtop centrifuge, balance, data station. Island 3 — osmometer + sample-prep cart. Each island's existing sink/utility drop is marked; verify what's actually plumbed to each before assigning equipment that needs power vs. drain vs. vacuum.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V2},
+  v3: {label:"v3 — walking-distance optimized", title:"Upstream Process Development Suite — Floor Plan (v3, walking-distance optimized)", heading:"Upstream Process Development Suite — walking-distance optimized (v3)", note:"<b>v3 — walking-distance optimized.</b> Repositioned to cut total daily walking ~57% (≈428 → ≈182 ft/day, per the workflow data in <code>/workflows</code>). Two changes drive most of it: (1) the <b>bioreactors moved from the far-right wall into a central bay right beside the fixed analytics island + data station</b>, since daily sampling (bioreactor → island → data station, 2×/day per reactor) is ~85% of all foot traffic; (2) the <b>prep cluster — incubator, freezer/media, BSC — is grouped tight in the lower-left</b> so the passage/inoculation loop no longer bounces the width of the room. See <code>/workflows/walking_distance_analysis.md</code> for the full breakdown.\n      <br><br>\n      <b>Still to confirm:</b> the analytics <b>island is treated as fixed casework</b> (utility drops) — everything was arranged around it. A dedicated <b>media refrigerator</b> is referenced by three workflows but doesn't exist as a station yet (freezer used as a proxy in the math). Which specific bioreactor each \"daily sampling\" / \"inoculate\" trip targets is assumed — adjust in <code>/workflows</code> if wrong.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V3}
+};
+let activePreset = 'v2';
+let items = JSON.parse(JSON.stringify(ITEMS_V2));
 
 let selectedId=null, dragState=null, resizeState=null, sizeLocked=true;
 
@@ -1496,8 +1778,12 @@ function exportLayout(){
   selectedId = null;
   renderRoom();
   const itemsJson = JSON.stringify(items, null, 2);
+  document.documentElement.setAttribute('data-pinned','1');
+  document.documentElement.setAttribute('data-preset', activePreset);
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  html = html.replace(/let items\s*=\s*\[[\s\S]*?\n\];/, 'let items = ' + itemsJson + ';');
+  document.documentElement.removeAttribute('data-pinned');
+  document.documentElement.removeAttribute('data-preset');
+  html = html.replace(/let items\s*=\s*JSON\.parse\([^;]*\);/, 'let items = ' + itemsJson + ';');
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1736,6 +2022,32 @@ function saveLayoutAs(n){ const saved=loadSaved(); saved[n]=JSON.parse(JSON.stri
   if(exp) exp.addEventListener('click',()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(loadSaved(),null,2)); a.download='saved_layouts.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
   if(imp&&file){ imp.addEventListener('click',()=>file.click()); file.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=JSON.parse(rd.result); const saved=loadSaved(); Object.assign(saved,obj); persistSaved(saved); refreshLayoutSelect(); alert('Imported '+Object.keys(obj).length+' layout(s)'); }catch(err){ alert('Could not read that file'); } }; rd.readAsText(f); e.target.value=''; }); }
   refreshLayoutSelect();
+})();
+
+/* ---------- Layout presets (v2/v3 built in) ---------- */
+function loadPreset(id){
+  const p = LAYOUTS[id]; if(!p) return;
+  activePreset = id;
+  items = JSON.parse(JSON.stringify(p.items)); selectedId = null;
+  document.title = p.title;
+  const h1 = document.querySelector('header h1'); if(h1) h1.textContent = p.heading;
+  const nb = document.querySelector('.note-box'); if(nb) nb.innerHTML = p.note;
+  try{ localStorage.setItem('labActivePreset', id); }catch(e){}
+  renderRoom();
+}
+(function(){
+  const sel = document.getElementById('presetSelect'); if(!sel) return;
+  Object.keys(LAYOUTS).forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=LAYOUTS[id].label; sel.appendChild(o); });
+  let active = 'v2';
+  if(document.documentElement.dataset.pinned){
+    // An exported file: keep its inline (pinned) arrangement; don't auto-switch.
+    active = document.documentElement.dataset.preset || 'v2';
+  } else {
+    try{ const s=localStorage.getItem('labActivePreset'); if(s&&LAYOUTS[s]) active=s; }catch(e){}
+    if(active !== 'v2') loadPreset(active);   // v2 is already the inline default
+  }
+  sel.value = active;
+  sel.addEventListener('change', e=>{ if(LAYOUTS[e.target.value]) loadPreset(e.target.value); });
 })();
 
 renderRoom();

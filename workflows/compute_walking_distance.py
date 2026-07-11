@@ -6,8 +6,12 @@ and the workflow activities/steps, normalizes every activity to trips-per-day,
 and reports total walked feet per day plus the highest-traffic legs.
 
 Usage:
-    python3 compute_walking_distance.py ../layouts/upstream_lab_layout_v2.html
-    python3 compute_walking_distance.py ../layouts/upstream_lab_layout_v3.html
+    python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v2
+    python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v3
+
+The layout file holds both arrangements as presets (const ITEMS_V2 / ITEMS_V3);
+the second arg picks one (default v2). An exported single-layout file (which
+carries a plain `let items = [...]`) also works with no preset arg.
 
 Distances are straight-line (centroid-to-centroid), a first-pass approximation
 appropriate for a fairly open room. Add obstacle-aware routing later if it
@@ -40,22 +44,25 @@ def activities():
     a['inoculate_bioreactor']  = (['rocker1', 'islandA', 'datastation', '50L-a'], RUNS_PER_DAY, 2)
     return a
 
-def load_centroids(path):
+def load_centroids(path, preset='v2'):
     html = open(path).read()
-    items = json.loads(re.search(r'let items = (\[.*?\n\]);', html, re.S).group(1))
+    m = re.search(r'const ITEMS_' + preset.upper() + r'\s*=\s*(\[.*?\n\]);', html, re.S)
+    if not m:                                    # exported/legacy single-layout file
+        m = re.search(r'let items\s*=\s*(\[.*?\n\]);', html, re.S)
+    items = json.loads(m.group(1))
     c = {}
     for it in items:
         sid = RENAME.get(it['id'], it['id'])
         c[sid] = (it['x'] + it['w']/2, it['y'] + it['h']/2)
     return c
 
-def main(path):
-    C = load_centroids(path)
+def main(path, preset='v2'):
+    C = load_centroids(path, preset)
     d = lambda a, b: math.dist(C[a], C[b])
     pathlen = lambda seq: sum(d(seq[i], seq[i+1]) for i in range(len(seq)-1))
     acts = activities()
 
-    print(f"Layout: {path}\n")
+    print(f"Layout: {path} [preset: {preset}]\n")
     print(f"{'activity':30s} {'trips/day':>9s} {'ppl':>3s} {'ft/trip':>8s} {'ft/day':>8s}")
     total = 0
     pair = defaultdict(float)
@@ -70,4 +77,6 @@ def main(path):
         print(f"  {a:14s} <-> {b:14s} {v:7.1f}   (leg {d(a,b):.1f} ft)")
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else '../layouts/upstream_lab_layout_v2.html')
+    path = sys.argv[1] if len(sys.argv) > 1 else '../layouts/upstream_lab_layout.html'
+    preset = sys.argv[2] if len(sys.argv) > 2 else 'v2'
+    main(path, preset)

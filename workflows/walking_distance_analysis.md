@@ -5,8 +5,8 @@ straight from the layout HTML and the workflow data in this folder. Re-run it
 any time the workflow data or a layout changes:
 
 ```
-python3 compute_walking_distance.py ../layouts/upstream_lab_layout_v2.html
-python3 compute_walking_distance.py ../layouts/upstream_lab_layout_v3.html
+python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v2
+python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v3
 ```
 
 ## Method
