@@ -35,6 +35,15 @@ newest first), `humantest.md` (user-testing feedback ledger).
 - Periodically archive: when `TODO.md`'s checked-off `[x]` items outnumber the open ones, delete the completed entries (their substance lives in git history / commit messages) to keep `TODO.md` scannable.
 - Version layouts with a `_vN` suffix rather than overwriting, so iterations stay comparable.
 
+## Working efficiently (session cost)
+
+The whole transcript is re-sent every turn, so cost scales with session length and with heavy material kept in context. Without cutting rigor:
+- Prefer targeted reads (Grep, or Read with offset/limit) over whole-file reads; don't re-read a file already in context, and don't re-read after an Edit just to confirm it (Edit fails loudly if it didn't apply).
+- Don't take screenshots unless the user explicitly asks — verify programmatically instead (drive it headless and assert computed values / script output).
+- Prefer Edit over re-emitting whole blocks; don't paste large code back into chat.
+- Keep replies concise: briefly state what changed and the result, not a blow-by-blow of every step.
+- These layouts are one big inline-CSS/JS HTML file each — reading the relevant region is fine; just don't read the whole file twice.
+
 ## Repo structure
 
 ```
