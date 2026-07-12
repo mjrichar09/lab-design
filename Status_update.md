@@ -4,6 +4,13 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-11 — hand theme: ruler-straight ink
+
+- Dropped the `feDisplacementMap` roughen filters from the hand theme (walls,
+  doors, shelves, and walk paths) so every line is ruler-straight. The
+  hand-drafted feel now comes from the vellum palette, hand-lettering, sketch
+  corners, and the wall drawing itself on — just without the wobble.
+
 ## 2026-07-11 — routing fix, fit-to-width, label auto-placement, preset dropdown retired
 
 - **Collision avoidance fixed.** The visibility-graph router was letting legs cut

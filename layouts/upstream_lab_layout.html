@@ -1135,16 +1135,9 @@ const BG_THEMES = {
     colFill:'#ded4b8', colStroke:'#6b6656', storFill:'#e7ddc4',
     shelfFill:'#ded4b8', shelfStroke:'#6b6656', shelfText:'#33322c',
     rmFill:'#f7f1e1', shaftText:'#6b6656',
-    f:' filter="url(#rough)"', fs:' filter="url(#roughSoft)"', drawWall:true,
-    roughDefs:`
-  <filter id="rough" x="-4%" y="-4%" width="108%" height="108%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="7" result="n"/>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="3.4" xChannelSelector="R" yChannelSelector="G"/>
-  </filter>
-  <filter id="roughSoft" x="-6%" y="-6%" width="112%" height="112%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3" result="n"/>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
-  </filter>`
+    // ruler-straight ink (no roughen displacement) — the hand feel comes from the
+    // vellum palette, hand-lettering, and the wall drawing itself on
+    f:'', fs:'', drawWall:true, roughDefs:''
   },
   // HELIX HUD — neon lines on a dark canvas (glow/scanline chrome lives in scoped CSS)
   cyber: {
@@ -2024,7 +2017,6 @@ function renderPaths(){
       poly.setAttribute('stroke-linejoin','round');
       poly.setAttribute('stroke-linecap','round');
       poly.style.color=act.color;   // drives the cyber currentColor glow
-      if(handTheme) poly.setAttribute('filter','url(#roughSoft)');   // hand-inked wobble
       pathLayer.appendChild(poly);
       if(cyberTheme && animate){   // neon "draw-on" of the route
         try{ const len=poly.getTotalLength(); poly.style.setProperty('--len',len); poly.style.strokeDasharray=len; poly.classList.add('pdraw'); }catch(e){}
