@@ -4,6 +4,22 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-11 — cyber theme added; v3 preset removed
+
+- Added a third theme, **Cyber — HELIX HUD** (neon-on-dark: glass panels,
+  cyan/violet glow, drifting grid + scanline overlay, glowing draw-on walk
+  paths), ported from `claude/cyber-theme`. Same two-part pattern as hand: a
+  scoped `:root[data-theme="cyber"]` CSS block + a `cyber` entry in the JS
+  `BG_THEMES` registry. Equipment is now theme-aware — `COLORS`/`FILLS` reference
+  `--cat-*` / `--fill-*` tokens the themes override (blueprint/hand keep the
+  original values, so no change there).
+- **Removed the v3 preset** (`ITEMS_V3` + its `LAYOUTS` entry, ~6.7 KB). v2 is
+  now the sole layout preset; `compute_walking_distance.py` and the docs were
+  updated to drop the `v3` arg. The v2↔v3 rationale still lives in
+  `workflows/walking_distance_analysis.md` and git history.
+- Verified headless (jsdom): clean load, preset list is just `v2`, all three
+  themes switch and revert, walk total unchanged (598 ft) across themes.
+
 ## 2026-07-11 — hand-drafted theme added as a picker
 
 - Ported the vellum / hand-lettered look from `claude/hand-drafted-style`

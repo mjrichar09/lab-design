@@ -9,13 +9,13 @@ construction drawings.
 
 - `layouts/upstream_lab_layout.html` — the interactive floor plan for the
   **Upstream Process Development Suite**. Open it directly in a browser (no
-  server/build step needed). A **Layout preset** dropdown at the top switches
-  between **v2** (the as-provided arrangement) and **v3** (a walking-distance-
-  optimized rearrangement of the same equipment — ~57% less daily walking, same
-  footprint; see `workflows/walking_distance_analysis.md` for the rationale and
-  numbers). Drag equipment to reposition, use the corner handle to resize, ↻ to
-  rotate, and the sidebar list to rename/add/remove items. Use **"Download my
-  edited layout"** to export your edits as a new standalone HTML file.
+  server/build step needed). It loads the **v2** (as-provided) arrangement; a
+  **Theme** picker at the top restyles the whole sheet between **Blueprint**
+  (default), **Hand-drafted** (warm vellum, hand-lettered), and **Cyber — HELIX
+  HUD** (neon-on-dark). Drag equipment to reposition, use the corner handle to
+  resize, ↻ to rotate, and the sidebar list to rename/add/remove items. Use
+  **"Download my edited layout"** to export your edits (and the current theme)
+  as a new standalone HTML file.
 - `workflows/` — workflow data (activities, ordered station sequences, run
   cadence) plus `compute_walking_distance.py`, which turns that data + a layout
   into a weighted travel chart. See `workflows/README.md`.
@@ -52,7 +52,8 @@ construction drawings.
 ## How to use this repo
 
 1. Open `layouts/upstream_lab_layout.html` in a browser to view/edit the
-   layout; use the preset dropdown to compare v2 and v3.
+   layout; use the Theme picker to switch between Blueprint, Hand-drafted, and
+   Cyber looks.
 2. Track outstanding design work in `TODO.md`.
 3. Fill in the workflow data templates in `workflows/` to describe daily and
    per-run activities — this feeds the walking-distance analysis (see

@@ -33,7 +33,7 @@ newest first), `humantest.md` (user-testing feedback ledger).
 - Doc-update cadence: batch, don't drip. `TODO.md` is touched at feature completion or when a decision lands; `CLAUDE.md`/`README.md` only on real changes; the analysis doc is refreshed when a layout or the underlying data changes and the numbers are re-run.
 - Verify tool/layout changes by actually opening the HTML in a browser (or driving it headless) before committing — don't rely on reading the diff alone.
 - Periodically archive: when `TODO.md`'s checked-off `[x]` items outnumber the open ones, delete the completed entries (their substance lives in git history / commit messages) to keep `TODO.md` scannable.
-- Keep layout iterations comparable by adding each new arrangement as a preset in the `LAYOUTS` registry (v2, v3, …) inside the single `layouts/upstream_lab_layout.html`, rather than forking a new file.
+- Keep layout iterations comparable by adding each new arrangement as a preset in the `LAYOUTS` registry inside the single `layouts/upstream_lab_layout.html`, rather than forking a new file. (v3 was removed 2026-07-11; v2 is the sole preset now.)
 
 ## Working efficiently (session cost)
 
@@ -51,7 +51,7 @@ README.md          overview + how to open the layouts and run the analysis
 TODO.md            prioritized backlog / next steps
 CLAUDE.md          this file
 layouts/           self-contained interactive floor-plan HTML (open in a browser)
-  upstream_lab_layout.html      single app; v2 (as-provided) & v3 (optimized) are built-in presets
+  upstream_lab_layout.html      single app; v2 (as-provided) is the built-in preset, with Blueprint / Hand-drafted / Cyber themes
 workflows/         workflow data + walking-distance analysis
   README.md                     how the data templates feed the analysis
   activities_template.csv       one row per recurring activity (frequency, people, path type)
@@ -66,8 +66,8 @@ workflows/         workflow data + walking-distance analysis
 There is no package manager, bundler, or test runner. The whole project is plain
 HTML you open directly, plus one Python script:
 
-- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. Pick **v2** or **v3** from the "Layout preset" dropdown at the top, and a **Theme** (Blueprint / Hand-drafted) from the picker beside it. Drag to move, corner handle to resize, ↻ to rotate (90° swap), sidebar to rename/add/remove. "Download my edited layout" exports a new standalone HTML pinned to what's on screen (and to the current theme).
-- **Run the walking-distance analysis:** `python3 workflows/compute_walking_distance.py layouts/upstream_lab_layout.html v3` (second arg picks the preset; default `v2`).
+- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. Pick a **Theme** (Blueprint / Hand-drafted / Cyber) from the picker at the top (the "Layout preset" dropdown currently offers only **v2**). Drag to move, corner handle to resize, ↻ to rotate (90° swap), sidebar to rename/add/remove. "Download my edited layout" exports a new standalone HTML pinned to what's on screen (and to the current theme).
+- **Run the walking-distance analysis:** `python3 workflows/compute_walking_distance.py layouts/upstream_lab_layout.html` (optional second arg picks a preset; default `v2`).
 
 ## Design system
 
@@ -75,7 +75,7 @@ Each layout HTML carries its own lightweight visual system inline (no external
 stylesheet). When editing the tool, match what's already there rather than
 introducing new styles.
 
-- **Themes.** A `Theme` picker (independent of the Layout-preset picker) swaps the whole sheet's look via `data-theme` on `<html>`. `blueprint` (default) is the crisp draft described here; `hand` is a warm vellum, hand-lettered variant (Architects Daughter / Caveat display faces, roughen SVG filters, sketch-edged boxes, inked walk paths, wall-draw + sketch-in load animations). Per-theme palette lives in scoped `:root[data-theme="hand"]` CSS; the background SVG's per-theme ink colors/filters live in the JS `BG_THEMES` registry consumed by `buildBg()`. Keep those two in sync when touching a theme, and keep `blueprint` output byte-faithful to the original draft.
+- **Themes.** A `Theme` picker (independent of the Layout-preset picker) swaps the whole sheet's look via `data-theme` on `<html>`. `blueprint` (default) is the crisp draft described here; `hand` is a warm vellum, hand-lettered variant (Architects Daughter / Caveat display faces, roughen SVG filters, sketch-edged boxes, inked walk paths, wall-draw + sketch-in load animations); `cyber` (HELIX HUD) is neon-on-dark — glass panels, cyan/violet glow, a drifting grid + scanline overlay, and glowing draw-on walk paths. Each theme has **two** coordinated halves that must stay in sync: (1) scoped `:root[data-theme="…"]` CSS (palette + chrome), and (2) the JS `BG_THEMES` registry that `buildBg()` reads for the background-SVG ink colors/filters. Equipment colors are theme-driven too — `COLORS`/`FILLS` reference `--cat-*` / `--fill-*` tokens overridden per theme. Keep `blueprint` output byte-faithful to the original draft.
 - **Font:** IBM Plex Mono throughout (labels, dimension tags, stats) in the blueprint theme; the hand theme uses cursive display/annotation faces.
 - **Equipment color categories** — defined as `COLORS` / `FILLS` in the HTML and shown in the on-screen Legend:
   - teal — bioreactors / ATF
@@ -90,5 +90,5 @@ introducing new styles.
 - **Self-contained HTML.** Each layout is one offline file with no required external dependencies, so anyone can open and keep editing it. Don't add build steps or external runtime deps.
 - **Equipment lives in the `LAYOUTS` presets.** Each preset's `items` array (`ITEMS_V2` / `ITEMS_V3`) is the source of truth for that arrangement; `let items` is the working copy the tool renders and mutates. The tool rebuilds the entire floor from `items` on load and on every preset switch, so edit coordinates/sizes in the relevant `ITEMS_*` array; the pre-rendered DOM is regenerated.
 - **Station ids are stable keys.** e.g. `custom1` = 1000 kg scale, `custom5` = Rocker 1. The walking-distance `ACTIVITIES` list and `workflows/compute_walking_distance.py` both reference these ids — keep them in sync when renaming/adding equipment, and regenerate `station_reference.csv` from the layout.
-- **One tooling copy, layouts as presets.** v2 and v3 are presets in a single file, so the walking-distance panel and routing logic exist once — no more mirroring tool changes across files. Add a new layout by appending an `ITEMS_*` array + a `LAYOUTS` entry (and, if it should feed the Python analysis, wire the preset name there too).
+- **One tooling copy, layouts as presets.** Layouts live as presets in a single file, so the walking-distance panel and routing logic exist once — no more mirroring tool changes across files. Add a new layout by appending an `ITEMS_*` array + a `LAYOUTS` entry (and, if it should feed the Python analysis, wire the preset name there too).
 - **Be explicit about which distance a number is.** The analysis doc and Python script use straight-line centroid-to-centroid distance (the documented first-pass); the in-tool overlay adds obstacle-aware routing on top and reads higher.
