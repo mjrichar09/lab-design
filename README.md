@@ -7,16 +7,15 @@ construction drawings.
 
 ## What's here
 
-- `layouts/upstream_lab_layout_v2.html` — the current/as-provided interactive
-  floor plan for the **Upstream Process Development Suite**. Open it directly in
-  a browser (no server/build step needed). Drag equipment to reposition, use the
-  corner handle to resize, ↻ to rotate, and the sidebar list to rename/add/remove
-  items. Use **"Download my edited layout"** to export your edits as a new
-  standalone HTML file.
-- `layouts/upstream_lab_layout_v3.html` — a **walking-distance-optimized**
-  rearrangement of the same equipment (~57% less daily walking, same footprint).
-  Same interactive tool. See `workflows/walking_distance_analysis.md` for the
-  rationale and numbers.
+- `layouts/upstream_lab_layout.html` — the interactive floor plan for the
+  **Upstream Process Development Suite**. Open it directly in a browser (no
+  server/build step needed). A **Layout preset** dropdown at the top switches
+  between **v2** (the as-provided arrangement) and **v3** (a walking-distance-
+  optimized rearrangement of the same equipment — ~57% less daily walking, same
+  footprint; see `workflows/walking_distance_analysis.md` for the rationale and
+  numbers). Drag equipment to reposition, use the corner handle to resize, ↻ to
+  rotate, and the sidebar list to rename/add/remove items. Use **"Download my
+  edited layout"** to export your edits as a new standalone HTML file.
 - `workflows/` — workflow data (activities, ordered station sequences, run
   cadence) plus `compute_walking_distance.py`, which turns that data + a layout
   into a weighted travel chart. See `workflows/README.md`.
@@ -52,12 +51,13 @@ construction drawings.
 
 ## How to use this repo
 
-1. Open `layouts/upstream_lab_layout_v2.html` in a browser to view/edit the
-   current layout.
+1. Open `layouts/upstream_lab_layout.html` in a browser to view/edit the
+   layout; use the preset dropdown to compare v2 and v3.
 2. Track outstanding design work in `TODO.md`.
 3. Fill in the workflow data templates in `workflows/` to describe daily and
    per-run activities — this feeds the walking-distance analysis (see
    `workflows/README.md`).
-4. When you export an edited layout from the tool, save it into `layouts/`
-   with an incremented version suffix (e.g. `_v3`) so prior iterations stay
-   available for comparison.
+4. To keep a new arrangement, add it as a preset in the `LAYOUTS` registry in
+   `layouts/upstream_lab_layout.html` so prior iterations stay available for
+   comparison in the dropdown. (The tool's "Download my edited layout" export
+   produces a standalone one-off file pinned to the current on-screen layout.)

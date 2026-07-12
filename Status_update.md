@@ -4,6 +4,19 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-11 — layouts consolidated into one app
+
+- Collapsed the duplicated `_v2`/`_v3` HTML files (~1,650 identical tooling
+  lines each) into a single `layouts/upstream_lab_layout.html`; v2 and v3 are
+  now built-in **presets** (`ITEMS_V2`/`ITEMS_V3` + a `LAYOUTS` registry) chosen
+  from a "Layout preset" dropdown, with the choice persisted. Tooling now lives
+  in exactly one place — no more mirroring changes across two files.
+- `compute_walking_distance.py` takes a preset arg (`… upstream_lab_layout.html v3`);
+  totals unchanged (v2 403.7 / v3 183.2 ft/day straight-line), confirming a
+  clean coordinate move.
+- "Download my edited layout" now pins the export to the on-screen arrangement.
+- Old `_v2.html` / `_v3.html` removed (history in git). Docs updated.
+
 ## 2026-07-10 — initial build
 
 - Repo seeded: `README`, `TODO`, `CLAUDE.md`, and two interactive floor-plan

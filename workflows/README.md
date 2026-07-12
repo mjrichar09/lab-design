@@ -2,7 +2,7 @@
 
 These files capture *who walks where, how often* so we can compute a
 weighted travel (From-To) chart against the layout in
-`../layouts/upstream_lab_layout_v2.html` and identify which equipment
+`../layouts/upstream_lab_layout.html` and identify which equipment
 should be placed closer together to cut wasted walking distance.
 
 Fill in the three `*_template.csv` files (Google Sheets, Excel, or a text

@@ -67,7 +67,7 @@ related process steps.
       See `workflows/walking_distance_analysis.md` — daily sampling is ~85%
       of foot traffic; bioreactor↔island legs dominate.
 - [x] Estimate walking distances between linked steps and iterate placement
-      to minimize them. Produced `layouts/upstream_lab_layout_v3.html`
+      to minimize them. Produced the walking-distance-optimized **v3** preset
       (~57% less walking, same footprint). **Pending user confirmation of
       assumptions** (media fridge, per-trip bioreactor targets).
 - [x] Add a dedicated media refrigerator to the prep cluster (referenced by
@@ -94,6 +94,13 @@ related process steps.
 
 ## 5. Layout tool / editor improvements
 
+- [x] Consolidate the two duplicated layout files into a single
+      `layouts/upstream_lab_layout.html` with v2/v3 as built-in **presets**
+      (a `LAYOUTS` registry + `ITEMS_V2`/`ITEMS_V3`), chosen from a "Layout
+      preset" dropdown and persisted. Removes ~1,650 lines of mirrored tooling
+      per file; export pins to the on-screen arrangement;
+      `compute_walking_distance.py` takes a preset arg. Walking-distance totals
+      unchanged (v2 403.7 / v3 183.2 ft/day), confirming a clean move.
 - [x] Make equipment rotatable. The ↻ button now rotates in 45° steps (stored
       as `rot`, applied via CSS transform; label/dim-tag counter-rotate to stay
       readable). Obstacle routing uses the rotated bounding box. *Follow-up:
