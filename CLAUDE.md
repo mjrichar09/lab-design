@@ -83,12 +83,12 @@ introducing new styles.
   - plum — harvest / filtration skids
   - slate — carts, utilities & storage
   - blue — custom / user-added
-- **Walking-path overlay colors** — one per activity, in the `ACTIVITIES` array: sampling = red-orange, harvest = teal-green, passage = purple, inoculate-rocker = amber, inoculate-bioreactor = blue. Keep them distinct so several paths read clearly when shown at once.
+- **Walking-path overlay colors** — one per path. Built-in paths seed distinct colors in `DEFAULT_WALKPATHS` (sampling = red-orange, harvest = teal-green, passage = purple, inoculate-rocker = amber, inoculate-bioreactor = blue); user-defined paths draw the next free color from `PATH_PALETTE`. Keep them distinct so several read clearly at once.
 
 ## Conventions
 
 - **Self-contained HTML.** Each layout is one offline file with no required external dependencies, so anyone can open and keep editing it. Don't add build steps or external runtime deps.
 - **Equipment lives in the `LAYOUTS` presets.** Each preset's `items` array (`ITEMS_V2` / `ITEMS_V3`) is the source of truth for that arrangement; `let items` is the working copy the tool renders and mutates. The tool rebuilds the entire floor from `items` on load and on every preset switch, so edit coordinates/sizes in the relevant `ITEMS_*` array; the pre-rendered DOM is regenerated.
-- **Station ids are stable keys.** e.g. `custom1` = 1000 kg scale, `custom5` = Rocker 1. The walking-distance `ACTIVITIES` list and `workflows/compute_walking_distance.py` both reference these ids — keep them in sync when renaming/adding equipment, and regenerate `station_reference.csv` from the layout.
+- **Station ids are stable keys.** e.g. `custom1` = 1000 kg scale, `custom5` = Rocker 1. Walk paths (`walkPaths`, seeded from `DEFAULT_WALKPATHS`) and `workflows/compute_walking_distance.py` both reference these ids — keep them in sync when renaming/adding equipment, and regenerate `station_reference.csv` from the layout. In-tool walk paths are now user-editable (Define-path button); they persist in Saved layouts and the HTML export but do **not** flow to the Python script, which keeps its own activity list.
 - **One tooling copy, layouts as presets.** Layouts live as presets in a single file, so the walking-distance panel and routing logic exist once — no more mirroring tool changes across files. Add a new layout by appending an `ITEMS_*` array + a `LAYOUTS` entry (and, if it should feed the Python analysis, wire the preset name there too).
 - **Be explicit about which distance a number is.** The analysis doc and Python script use straight-line centroid-to-centroid distance (the documented first-pass); the in-tool overlay adds obstacle-aware routing on top and reads higher.

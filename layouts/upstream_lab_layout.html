@@ -458,11 +458,24 @@
   .walkbox{border:1px solid var(--line);border-radius:5px;padding:8px 9px;margin:8px 0 4px;background:#fff;}
   .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:7px;}
   .walkbox .wb-total b{font-size:15px;font-family:'IBM Plex Mono',monospace;}
-  .walk-row{display:flex;align-items:center;gap:6px;font-size:10.6px;padding:2.5px 0;cursor:pointer;}
-  .walk-row input{cursor:pointer;margin:0;flex:none;}
-  .walk-row .wswatch{width:16px;height:4px;border-radius:2px;flex:none;}
-  .walk-row .wname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .walk-row .wft{font-family:'IBM Plex Mono',monospace;color:var(--slate);flex:none;}
+  .walk-row{display:flex;align-items:center;gap:4px;font-size:10.6px;padding:3px 0;border-bottom:1px dashed var(--line);}
+  .walk-row input,.walk-row select{margin:0;}
+  .walk-row .wshow{cursor:pointer;flex:none;}
+  .walk-row .wswatch{width:12px;height:9px;border-radius:2px;flex:none;}
+  .walk-row .wname-edit{flex:1;min-width:0;border:1px solid transparent;background:transparent;color:var(--ink);font-size:10.6px;padding:1px 2px;border-radius:3px;font-family:'IBM Plex Sans',sans-serif;}
+  .walk-row .wname-edit:hover,.walk-row .wname-edit:focus{border-color:var(--line);background:var(--white);outline:none;}
+  .walk-row .wft{font-family:'IBM Plex Mono',monospace;color:var(--slate);flex:none;font-variant-numeric:tabular-nums;min-width:38px;text-align:right;}
+  .walk-row .wfreq{width:32px;font-family:'IBM Plex Mono',monospace;font-size:10px;border:1px solid var(--line);border-radius:3px;padding:1px 2px;text-align:center;background:var(--white);color:var(--ink);flex:none;}
+  .walk-row .wunit{font-size:9.5px;border:1px solid var(--line);border-radius:3px;background:var(--white);color:var(--ink);padding:1px;flex:none;cursor:pointer;}
+  .walk-row .wdel{flex:none;}
+  .wb-define{width:100%;margin-top:6px;padding:6px;background:var(--white);color:var(--ink);border:1px solid var(--line);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;}
+  .wb-define:hover{border-color:var(--blue);color:var(--blue);}
+  .wb-build{margin-top:6px;padding:7px;border:1.5px solid var(--blue);border-radius:5px;background:var(--white);font-size:10.5px;}
+  .wb-build-hint{display:block;margin-bottom:6px;color:var(--blue);font-weight:600;line-height:1.35;}
+  .wb-build-btns{display:flex;gap:4px;flex-wrap:wrap;}
+  .wb-build-btns button{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:3px 7px;border:1px solid var(--ink);background:var(--white);color:var(--ink);border-radius:4px;cursor:pointer;}
+  .wb-build-btns button:hover{background:var(--ink);color:var(--white);}
+  #stage.building,#stage.building .equip{cursor:crosshair;}
   .walkbox .wb-hint{font-size:9.6px;color:var(--slate);margin-top:6px;line-height:1.4;}
 
   .canvas-wrap{flex:1;padding:34px;overflow:auto;}
@@ -700,7 +713,12 @@
     <div class="walkbox">
       <div class="wb-total"><span>Walking distance / day</span><b id="walkTotal">— ft</b></div>
       <div id="walkList"></div>
-      <div class="wb-hint">Check an activity to draw its walk path (routed around equipment) on the plan. Distances update live as you move equipment.</div>
+      <button type="button" id="definePathBtn" class="wb-define">＋ Define path</button>
+      <div id="buildBar" class="wb-build" style="display:none">
+        <span id="buildHint" class="wb-build-hint">Click each object in the route, in order…</span>
+        <div class="wb-build-btns"><button type="button" id="buildNewLeg">New leg</button><button type="button" id="buildUndo">Undo</button><button type="button" id="buildDone">Done</button><button type="button" id="buildCancel">Cancel</button></div>
+      </div>
+      <div class="wb-hint">Tick a path to draw it (routed around equipment); distances update live as you move equipment. Set each path's times per day/month, or ✕ to delete. Use <b>Define path</b> to add one: click each object in order, then Done.</div>
     </div>
 
     <div class="toolbar">
@@ -1725,6 +1743,7 @@ function renderRoom(){
 }
 
 function startDrag(e,it){
+  if(pathBuild){ e.preventDefault(); e.stopPropagation(); buildAddStop(it.id); return; }   // click adds a stop, not a drag
   e.preventDefault(); selectedId=it.id;
   dragState={it,startX:e.clientX,startY:e.clientY,origX:it.x,origY:it.y};
   document.addEventListener('mousemove',onDrag); document.addEventListener('mouseup',endDrag);
@@ -1802,6 +1821,7 @@ function exportLayout(){
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   document.documentElement.removeAttribute('data-pinned');
   html = html.replace(/let items\s*=\s*JSON\.parse\([^;]*\);/, 'let items = ' + itemsJson + ';');
+  html = html.replace(/let walkPaths\s*=\s*JSON\.parse\([^;]*\);/, 'let walkPaths = ' + JSON.stringify(walkPaths, null, 2) + ';');
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1813,31 +1833,38 @@ function exportLayout(){
   URL.revokeObjectURL(url);
 }
 
-equipLayer.addEventListener('mousedown',(e)=>{ if(e.target===equipLayer){selectedId=null;renderRoom();} });
+equipLayer.addEventListener('mousedown',(e)=>{ if(pathBuild) return; if(e.target===equipLayer){selectedId=null;renderRoom();} });
 
 /* ---------- Walking-distance / travel-path overlay (obstacle-aware) ---------- */
-// Activities mirror workflows/compute_walking_distance.py. Station refs use the
-// layout's item ids (e.g. custom1 = 1000 kg scale, custom5 = Rocker 1).
-// tripsPerDay & people are applied to EACH path in the activity. Distances are
-// shortest walkable routes that go AROUND equipment (visibility-graph routing),
-// so they read a bit higher than the straight-line figures in the analysis doc.
-const RUNS_PER_DAY = 3/30.4;   // 3 runs/month, from run_cadence
-const CLEAR_FT = 0.5;          // clearance kept around each equipment box (ft)
-const ACTIVITIES = [
-  { id:'sampling', name:'Daily sampling', color:'#e4572e', tripsPerDay:2, people:1,
-    paths:[ ['sartorius500','islandA','datastation','sartorius500'],
-            ['200L-a','islandA','datastation','200L-a'],
-            ['50L-a','islandA','datastation','50L-a'] ] },
-  { id:'harvest', name:'Harvest → centrifuge', color:'#1f9e89', tripsPerDay:RUNS_PER_DAY, people:2,
-    paths:[ ['sartorius500','harvest10','custom1','centrifuge'] ] },
-  { id:'passage', name:'Passage shake flask', color:'#8a4fff', tripsPerDay:2/7, people:1,
-    paths:[ ['incubator','fridge','bsc','islandA','datastation','bsc','incubator','fridge'] ] },
-  { id:'inocRocker', name:'Inoculate rocker', color:'#d68a00', tripsPerDay:RUNS_PER_DAY, people:1,
-    paths:[ ['incubator','fridge','bsc','islandA','datastation','bsc','custom5'] ] },
-  { id:'inocBR', name:'Inoculate bioreactor', color:'#2f6fed', tripsPerDay:RUNS_PER_DAY, people:2,
-    paths:[ ['custom5','islandA','datastation','50L-a'] ] },
+// Walk paths are user-editable (Define path button + the panel rows). Each path
+// is ONE row and may have several disjoint legs; a leg is an ordered list of
+// station ids that match the item ids in `items`. Distances are shortest walkable
+// routes that go AROUND equipment (visibility-graph routing). Seeded from the
+// analyzed workflows; the old people-multiplier is folded into a plain frequency.
+const CLEAR_FT = 0.5;           // clearance kept around each equipment box (ft)
+const DAYS_PER_MONTH = 30.4;
+const PATH_PALETTE = ['#e4572e','#1f9e89','#8a4fff','#d68a00','#2f6fed','#c0392b','#16a085','#8e44ad','#d35400','#2980b9'];
+const DEFAULT_WALKPATHS = [
+  { id:'p1', name:'Daily sampling', color:'#e4572e', unit:'day', freq:2,
+    legs:[ ['sartorius500','islandA','datastation','sartorius500'],
+           ['200L-a','islandA','datastation','200L-a'],
+           ['50L-a','islandA','datastation','50L-a'] ] },
+  { id:'p2', name:'Harvest → centrifuge', color:'#1f9e89', unit:'month', freq:3,
+    legs:[ ['sartorius500','harvest10','custom1','centrifuge'] ] },
+  { id:'p3', name:'Passage shake flask', color:'#8a4fff', unit:'month', freq:9,
+    legs:[ ['incubator','fridge','bsc','islandA','datastation','bsc','incubator','fridge'] ] },
+  { id:'p4', name:'Inoculate rocker', color:'#d68a00', unit:'month', freq:3,
+    legs:[ ['incubator','fridge','bsc','islandA','datastation','bsc','custom5'] ] },
+  { id:'p5', name:'Inoculate bioreactor', color:'#2f6fed', unit:'month', freq:3,
+    legs:[ ['custom5','islandA','datastation','50L-a'] ] },
 ];
-const shownActs = new Set();
+let walkPaths = JSON.parse(JSON.stringify(DEFAULT_WALKPATHS));
+const shownActs = new Set();    // path ids currently drawn on the plan
+let pathBuild = null;           // in-progress path being defined by clicking
+let _pidSeq = 0;
+function uid(){ return 'u'+Date.now().toString(36)+(_pidSeq++); }
+function freqPerDay(p){ return p.unit==='month' ? p.freq/DAYS_PER_MONTH : p.freq; }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // path overlay svg, aligned with equipLayer (which is offset by STO_W)
 const SVGNS='http://www.w3.org/2000/svg';
@@ -1950,41 +1977,86 @@ function pathLenFt(seq){
   for(let i=0;i<seq.length-1;i++){ const r=getRoute(seq[i],seq[i+1]); if(!r) return null; d+=r.dist; }
   return d;
 }
-function activityFtPerDay(act){
+function pathFtPerDay(p){
   let sum=0;
-  for(const seq of act.paths){ const d=pathLenFt(seq); if(d===null) return null; sum+=d*act.tripsPerDay*act.people; }
-  return sum;
+  for(const leg of p.legs){ const d=pathLenFt(leg); if(d===null) return null; sum+=d; }   // n/a if any stop is missing
+  return sum*freqPerDay(p);
 }
 function updateWalk(){
   let total=0, ok=true;
-  for(const act of ACTIVITIES){
-    const f=activityFtPerDay(act);
+  for(const p of walkPaths){
+    const f=pathFtPerDay(p);
     if(f===null){ ok=false; } else { total+=f; }
-    const lbl=document.getElementById('wft-'+act.id);
+    const lbl=document.getElementById('wft-'+p.id);
     if(lbl) lbl.textContent = f===null ? 'n/a' : Math.round(f)+' ft';
   }
-  document.getElementById('walkTotal').textContent = Math.round(total).toLocaleString()+' ft'+(ok?'':' *');
+  const wt=document.getElementById('walkTotal'); if(wt) wt.textContent = Math.round(total).toLocaleString()+' ft'+(ok?'':' *');
 }
-function renderWalkList(){
-  const list=document.getElementById('walkList');
+function renderPathList(){
+  const list=document.getElementById('walkList'); if(!list) return;
   list.innerHTML='';
-  ACTIVITIES.forEach(act=>{
-    const row=document.createElement('label');
+  walkPaths.forEach(p=>{
+    const row=document.createElement('div');
     row.className='walk-row';
-    row.innerHTML=`<input type="checkbox" data-act="${act.id}" ${shownActs.has(act.id)?'checked':''}>
-      <span class="wswatch" style="background:${act.color}"></span>
-      <span class="wname">${act.name}</span>
-      <span class="wft" id="wft-${act.id}">—</span>`;
+    row.innerHTML=`<input type="checkbox" class="wshow" data-id="${p.id}" ${shownActs.has(p.id)?'checked':''} title="Show on plan">
+      <span class="wswatch" style="background:${p.color}"></span>
+      <input type="text" class="wname-edit" data-id="${p.id}" value="${escapeHtml(p.name)}" title="Path name">
+      <span class="wft" id="wft-${p.id}">—</span>
+      <input type="number" class="wfreq" data-id="${p.id}" min="0" step="0.5" value="${p.freq}" title="Times per ${p.unit==='month'?'month':'day'}">
+      <select class="wunit" data-id="${p.id}" title="Frequency unit"><option value="day" ${p.unit==='day'?'selected':''}>/day</option><option value="month" ${p.unit==='month'?'selected':''}>/mo</option></select>
+      <button type="button" class="icon-btn wdel" data-id="${p.id}" title="Delete path">✕</button>`;
     list.appendChild(row);
   });
-  list.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-    cb.addEventListener('change',e=>{
-      const id=e.target.dataset.act;
-      if(e.target.checked) shownActs.add(id); else shownActs.delete(id);
-      renderPaths();
-    });
-  });
+  const byId=id=>walkPaths.find(p=>p.id===id);
+  list.querySelectorAll('.wshow').forEach(cb=>cb.addEventListener('change',e=>{ const id=e.target.dataset.id; if(e.target.checked) shownActs.add(id); else shownActs.delete(id); renderPaths(); }));
+  list.querySelectorAll('.wname-edit').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p) p.name=e.target.value; }));
+  list.querySelectorAll('.wfreq').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ p.freq=Math.max(0,parseFloat(e.target.value)||0); updateWalk(); } }));
+  list.querySelectorAll('.wunit').forEach(sel=>sel.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ p.unit=e.target.value; updateWalk(); renderPathList(); } }));
+  list.querySelectorAll('.wdel').forEach(btn=>btn.addEventListener('click',e=>{ const id=e.currentTarget.dataset.id; walkPaths=walkPaths.filter(p=>p.id!==id); shownActs.delete(id); renderPathList(); updateWalk(); renderPaths(); }));
+  updateWalk();
 }
+
+/* ---------- Path builder (click objects in order to define a path) ---------- */
+function enterPathBuild(){
+  if(pathBuild) return;
+  const used=new Set(walkPaths.map(p=>p.color));
+  const color=PATH_PALETTE.find(c=>!used.has(c)) || PATH_PALETTE[walkPaths.length%PATH_PALETTE.length];
+  pathBuild={legs:[],cur:[],color};
+  const st=document.getElementById('stage'); if(st) st.classList.add('building');
+  const bb=document.getElementById('buildBar'); if(bb) bb.style.display='';
+  const db=document.getElementById('definePathBtn'); if(db) db.style.display='none';
+  updateBuildHint(); renderPaths();
+}
+function exitPathBuild(){
+  pathBuild=null;
+  const st=document.getElementById('stage'); if(st) st.classList.remove('building');
+  const bb=document.getElementById('buildBar'); if(bb) bb.style.display='none';
+  const db=document.getElementById('definePathBtn'); if(db) db.style.display='';
+}
+function updateBuildHint(){
+  const h=document.getElementById('buildHint'); if(!h||!pathBuild) return;
+  const stops=pathBuild.cur.length, legsDone=pathBuild.legs.length;
+  h.textContent = stops===0
+    ? (legsDone? 'New leg — click its first object…' : 'Click each object in the route, in order…')
+    : `${stops} stop${stops>1?'s':''} in this leg${legsDone?` · ${legsDone} leg${legsDone>1?'s':''} done`:''} — keep clicking, or Done.`;
+}
+function buildAddStop(id){ if(!pathBuild) return; pathBuild.cur.push(id); updateBuildHint(); renderPaths(); }
+function buildNewLeg(){ if(!pathBuild) return; if(pathBuild.cur.length>=2){ pathBuild.legs.push(pathBuild.cur); pathBuild.cur=[]; updateBuildHint(); renderPaths(); } }
+function buildUndo(){ if(!pathBuild) return; if(pathBuild.cur.length) pathBuild.cur.pop(); else if(pathBuild.legs.length) pathBuild.cur=pathBuild.legs.pop(); updateBuildHint(); renderPaths(); }
+function buildDone(){
+  if(!pathBuild) return;
+  if(pathBuild.cur.length>=2) pathBuild.legs.push(pathBuild.cur);
+  const legs=pathBuild.legs.filter(l=>l.length>=2), color=pathBuild.color;
+  exitPathBuild();
+  if(legs.length){
+    const id=uid();
+    walkPaths.push({id, name:'Path '+(walkPaths.length+1), color, unit:'day', freq:1, legs});
+    shownActs.add(id);
+    renderPathList();
+  }
+  renderPaths();
+}
+function buildCancel(){ exitPathBuild(); renderPaths(); }
 function legPolyline(seq){
   let pts=[];
   for(let i=0;i<seq.length-1;i++){
@@ -1995,50 +2067,62 @@ function legPolyline(seq){
   }
   return pts;
 }
+function drawLeg(seq, color, off, opts){
+  opts=opts||{};
+  const handTheme=activeTheme==='hand', cyberTheme=activeTheme==='cyber';
+  const animate=!(dragState||resizeState) && !pathBuild && !opts.dashed;
+  const startFill = handTheme ? '#f7f1e1' : (cyberTheme ? '#070b16' : '#fff');   // start-dot core matches the canvas
+  const line=legPolyline(seq);
+  if(line){
+    const poly=document.createElementNS(SVGNS,'polyline');
+    poly.setAttribute('points', line.map(p=>`${p[0]+off},${p[1]+off}`).join(' '));
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke',color);
+    poly.setAttribute('stroke-width','3');
+    poly.setAttribute('stroke-opacity', handTheme ? '0.9' : '0.85');
+    poly.setAttribute('stroke-linejoin','round');
+    poly.setAttribute('stroke-linecap','round');
+    if(opts.dashed) poly.setAttribute('stroke-dasharray','7 5');
+    poly.style.color=color;   // drives the cyber currentColor glow
+    pathLayer.appendChild(poly);
+    if(cyberTheme && animate){   // neon "draw-on" of the route
+      try{ const len=poly.getTotalLength(); poly.style.setProperty('--len',len); poly.style.strokeDasharray=len; poly.classList.add('pdraw'); }catch(e){}
+    }
+  }
+  // dots at each station stop; ring the first to mark the start
+  seq.forEach((sid,i)=>{
+    const it=items.find(x=>x.id===sid); if(!it) return;
+    const px=ft(it.x+it.w/2)+off, py=ft(it.y+it.h/2)+off;
+    const c=document.createElementNS(SVGNS,'circle');
+    c.setAttribute('cx',px); c.setAttribute('cy',py);
+    c.setAttribute('r', i===0?4.5:3);
+    c.setAttribute('fill', i===0?startFill:color);
+    c.setAttribute('stroke',color); c.setAttribute('stroke-width', i===0?2.5:1);
+    c.style.color=color;
+    c.setAttribute('class', i===0?'pnode start':'pnode');
+    pathLayer.appendChild(c);
+  });
+}
 function renderPaths(){
   if(!pathLayer) return;
   pathLayer.innerHTML='';
-  const handTheme = activeTheme==='hand';
-  const cyberTheme = activeTheme==='cyber';
-  const animate = !(dragState||resizeState);   // don't replay draw-on while tracking a gesture
-  const startFill = handTheme ? '#f7f1e1' : (cyberTheme ? '#070b16' : '#fff');   // start-dot core matches the canvas
-  const active=ACTIVITIES.filter(a=>shownActs.has(a.id));
-  active.forEach((act,idx)=>{
+  const active=walkPaths.filter(p=>shownActs.has(p.id));
+  active.forEach((p,idx)=>{
     const off=(idx-(active.length-1)/2)*2;   // small nudge so coincident legs stay distinct
-    act.paths.forEach(seq=>{
-      const line=legPolyline(seq);
-      if(!line) return;
-      const poly=document.createElementNS(SVGNS,'polyline');
-      poly.setAttribute('points', line.map(p=>`${p[0]+off},${p[1]+off}`).join(' '));
-      poly.setAttribute('fill','none');
-      poly.setAttribute('stroke',act.color);
-      poly.setAttribute('stroke-width','3');
-      poly.setAttribute('stroke-opacity', handTheme ? '0.9' : '0.85');
-      poly.setAttribute('stroke-linejoin','round');
-      poly.setAttribute('stroke-linecap','round');
-      poly.style.color=act.color;   // drives the cyber currentColor glow
-      pathLayer.appendChild(poly);
-      if(cyberTheme && animate){   // neon "draw-on" of the route
-        try{ const len=poly.getTotalLength(); poly.style.setProperty('--len',len); poly.style.strokeDasharray=len; poly.classList.add('pdraw'); }catch(e){}
-      }
-      // dots at each station stop; ring the first to mark the start
-      seq.forEach((sid,i)=>{
-        const it=items.find(x=>x.id===sid); if(!it) return;
-        const px=ft(it.x+it.w/2)+off, py=ft(it.y+it.h/2)+off;
-        const c=document.createElementNS(SVGNS,'circle');
-        c.setAttribute('cx',px); c.setAttribute('cy',py);
-        c.setAttribute('r', i===0?4.5:3);
-        c.setAttribute('fill', i===0?startFill:act.color);
-        c.setAttribute('stroke',act.color); c.setAttribute('stroke-width', i===0?2.5:1);
-        c.style.color=act.color;
-        c.setAttribute('class', i===0?'pnode start':'pnode');
-        pathLayer.appendChild(c);
-      });
-    });
+    p.legs.forEach(leg=>drawLeg(leg, p.color, off));
   });
+  // live preview of the path currently being defined
+  if(pathBuild){
+    pathBuild.legs.forEach(leg=>{ if(leg.length>=2) drawLeg(leg, pathBuild.color, 0); });
+    if(pathBuild.cur.length>=2) drawLeg(pathBuild.cur, pathBuild.color, 0, {dashed:true});
+    else if(pathBuild.cur.length===1){
+      const it=items.find(x=>x.id===pathBuild.cur[0]);
+      if(it){ const c=document.createElementNS(SVGNS,'circle'); c.setAttribute('cx',ft(it.x+it.w/2)); c.setAttribute('cy',ft(it.y+it.h/2)); c.setAttribute('r',5); c.setAttribute('fill','none'); c.setAttribute('stroke',pathBuild.color); c.setAttribute('stroke-width','2.5'); pathLayer.appendChild(c); }
+    }
+  }
 }
 
-renderWalkList();
+renderPathList();
 
 /* ---------- Size lock + saved layouts ---------- */
 (function(){ const lock=document.getElementById('lockSizes'); if(lock) lock.addEventListener('change',e=>{ sizeLocked=e.target.checked; renderRoom(); }); })();
@@ -2048,8 +2132,14 @@ let _memSaved={};
 function loadSaved(){ try{ const s=localStorage.getItem(LS_KEY); return s?JSON.parse(s):Object.assign({},_memSaved); }catch(e){ return Object.assign({},_memSaved); } }
 function persistSaved(o){ _memSaved=o; try{ localStorage.setItem(LS_KEY,JSON.stringify(o)); }catch(e){} }
 function refreshLayoutSelect(){ const sel=document.getElementById('layoutSelect'); if(!sel) return; const saved=loadSaved(), prev=sel.value; sel.innerHTML=''; const o0=document.createElement('option'); o0.value=''; o0.textContent='— pick a saved layout —'; sel.appendChild(o0); Object.keys(saved).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); if(prev&&saved[prev]) sel.value=prev; }
-function activateLayout(n){ const saved=loadSaved(); if(!saved[n]) return; items=JSON.parse(JSON.stringify(saved[n])); selectedId=null; renderRoom(); }
-function saveLayoutAs(n){ const saved=loadSaved(); saved[n]=JSON.parse(JSON.stringify(items)); persistSaved(saved); refreshLayoutSelect(); const sel=document.getElementById('layoutSelect'); if(sel) sel.value=n; }
+function activateLayout(n){
+  const saved=loadSaved(); const rec=saved[n]; if(!rec) return;
+  const data=Array.isArray(rec)?{items:rec}:rec;   // back-compat: older records were a bare items array
+  items=JSON.parse(JSON.stringify(data.items||[]));
+  if(data.walkPaths){ walkPaths=JSON.parse(JSON.stringify(data.walkPaths)); shownActs.clear(); }
+  selectedId=null; renderPathList(); renderRoom();
+}
+function saveLayoutAs(n){ const saved=loadSaved(); saved[n]={items:JSON.parse(JSON.stringify(items)), walkPaths:JSON.parse(JSON.stringify(walkPaths))}; persistSaved(saved); refreshLayoutSelect(); const sel=document.getElementById('layoutSelect'); if(sel) sel.value=n; }
 (function(){
   const q=id=>document.getElementById(id);
   const save=q('layoutSave'), act=q('layoutActivate'), sel=q('layoutSelect'), upd=q('layoutUpdate'), del=q('layoutDelete'), exp=q('layoutExport'), imp=q('layoutImport'), file=q('layoutFile'), name=q('layoutName');
@@ -2060,9 +2150,21 @@ function saveLayoutAs(n){ const saved=loadSaved(); saved[n]=JSON.parse(JSON.stri
   if(del) del.addEventListener('click',()=>{ if(!sel.value) return; const saved=loadSaved(); delete saved[sel.value]; persistSaved(saved); refreshLayoutSelect(); });
   if(exp) exp.addEventListener('click',()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(loadSaved(),null,2)); a.download='saved_layouts.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
   if(imp&&file){ imp.addEventListener('click',()=>file.click()); file.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=JSON.parse(rd.result); const saved=loadSaved(); Object.assign(saved,obj); persistSaved(saved); refreshLayoutSelect(); alert('Imported '+Object.keys(obj).length+' layout(s)'); }catch(err){ alert('Could not read that file'); } }; rd.readAsText(f); e.target.value=''; }); }
-  // seed the original v2 arrangement as a restorable "Default" saved layout
-  const seeded=loadSaved(); if(!seeded[DEFAULT_LAYOUT_NAME]){ seeded[DEFAULT_LAYOUT_NAME]=JSON.parse(JSON.stringify(ITEMS_V2)); persistSaved(seeded); }
+  // seed the original v2 arrangement + default walk paths as a restorable "Default" saved layout
+  const seeded=loadSaved(); if(!seeded[DEFAULT_LAYOUT_NAME]){ seeded[DEFAULT_LAYOUT_NAME]={items:JSON.parse(JSON.stringify(ITEMS_V2)), walkPaths:JSON.parse(JSON.stringify(DEFAULT_WALKPATHS))}; persistSaved(seeded); }
   refreshLayoutSelect();
+})();
+
+/* ---------- Path builder wiring ---------- */
+(function(){
+  const q=id=>document.getElementById(id);
+  const db=q('definePathBtn'); if(db) db.addEventListener('click',enterPathBuild);
+  const nl=q('buildNewLeg'), un=q('buildUndo'), dn=q('buildDone'), cn=q('buildCancel');
+  if(nl) nl.addEventListener('click',buildNewLeg);
+  if(un) un.addEventListener('click',buildUndo);
+  if(dn) dn.addEventListener('click',buildDone);
+  if(cn) cn.addEventListener('click',buildCancel);
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && pathBuild) buildCancel(); });
 })();
 
 /* ---------- View scale (fit-to-width / user-adjustable zoom) ---------- */

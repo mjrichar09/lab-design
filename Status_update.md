@@ -4,6 +4,30 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-12 — user-configurable walking paths
+
+- Replaced the hard-coded `ACTIVITIES` array with an editable `walkPaths` model
+  (one row per path; a path can have several disjoint legs). The walk panel now
+  lets you rename a path, set its **frequency** (a number + per-day / per-month
+  toggle), toggle it on the plan, and **delete** it.
+- Added a **Define path** click-builder: press it, click each object in order
+  (routed connecting lines draw live; dragging is suppressed), use **New leg** for
+  a disjoint segment, then **Done** (or Cancel / Esc). New path gets the next free
+  `PATH_PALETTE` colour and a default 1/day.
+- Paths **persist with the layout** — stored in Saved layouts (record is now
+  `{items, walkPaths}`, back-compatible with the old array shape) and baked into
+  the HTML export via a `let walkPaths = […]` literal (mirrors the `items` trick).
+- Reused the existing obstacle-aware router and `pathLayer`, so custom paths route
+  around equipment like the built-ins. Seeded totals dropped from ~596→585 ft
+  because the old people-multiplier was folded into a plain frequency (per the
+  chosen day/month model); values are editable seeds.
+- Note: `workflows/compute_walking_distance.py` still has its own activity list;
+  in-tool custom paths don't feed it (possible follow-up: read `walkPaths` from an
+  exported file).
+- Verified headless (Edge): build flow incl. multi-leg + suppressed drag,
+  frequency recompute, delete, save/restore, export→reopen round-trip, 3-leg
+  sampling draw, 0 genuine route cut-throughs, all three themes clean.
+
 ## 2026-07-11 — hand theme: ruler-straight ink
 
 - Dropped the `feDisplacementMap` roughen filters from the hand theme (walls,
