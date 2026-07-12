@@ -4,6 +4,19 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-11 — hand-drafted theme added as a picker
+
+- Ported the vellum / hand-lettered look from `claude/hand-drafted-style`
+  into `layouts/upstream_lab_layout.html` as a **Theme** dropdown (Blueprint /
+  Hand-drafted) sitting next to Layout preset — the two axes are independent.
+- Blueprint stays the default and renders unchanged; Hand-drafted swaps the
+  palette, display/annotation fonts (Architects Daughter / Caveat), roughen SVG
+  filters, sketch-edged boxes, inked walk paths, and wall-draw + sketch-in load
+  animations. Driven by `data-theme` on `<html>` + scoped CSS; the background
+  SVG is now built by a themeable `buildBg()` reading a `BG_THEMES` registry.
+- Theme persists to `localStorage` and is pinned into exported layouts.
+  Verified headless (jsdom): clean load, live switch, and revert.
+
 ## 2026-07-11 — layouts consolidated into one app
 
 - Collapsed the duplicated `_v2`/`_v3` HTML files (~1,650 identical tooling

@@ -66,7 +66,7 @@ workflows/         workflow data + walking-distance analysis
 There is no package manager, bundler, or test runner. The whole project is plain
 HTML you open directly, plus one Python script:
 
-- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. Pick **v2** or **v3** from the "Layout preset" dropdown at the top. Drag to move, corner handle to resize, ↻ to rotate (90° swap), sidebar to rename/add/remove. "Download my edited layout" exports a new standalone HTML pinned to what's on screen.
+- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. Pick **v2** or **v3** from the "Layout preset" dropdown at the top, and a **Theme** (Blueprint / Hand-drafted) from the picker beside it. Drag to move, corner handle to resize, ↻ to rotate (90° swap), sidebar to rename/add/remove. "Download my edited layout" exports a new standalone HTML pinned to what's on screen (and to the current theme).
 - **Run the walking-distance analysis:** `python3 workflows/compute_walking_distance.py layouts/upstream_lab_layout.html v3` (second arg picks the preset; default `v2`).
 
 ## Design system
@@ -75,7 +75,8 @@ Each layout HTML carries its own lightweight visual system inline (no external
 stylesheet). When editing the tool, match what's already there rather than
 introducing new styles.
 
-- **Font:** IBM Plex Mono throughout (labels, dimension tags, stats).
+- **Themes.** A `Theme` picker (independent of the Layout-preset picker) swaps the whole sheet's look via `data-theme` on `<html>`. `blueprint` (default) is the crisp draft described here; `hand` is a warm vellum, hand-lettered variant (Architects Daughter / Caveat display faces, roughen SVG filters, sketch-edged boxes, inked walk paths, wall-draw + sketch-in load animations). Per-theme palette lives in scoped `:root[data-theme="hand"]` CSS; the background SVG's per-theme ink colors/filters live in the JS `BG_THEMES` registry consumed by `buildBg()`. Keep those two in sync when touching a theme, and keep `blueprint` output byte-faithful to the original draft.
+- **Font:** IBM Plex Mono throughout (labels, dimension tags, stats) in the blueprint theme; the hand theme uses cursive display/annotation faces.
 - **Equipment color categories** — defined as `COLORS` / `FILLS` in the HTML and shown in the on-screen Legend:
   - teal — bioreactors / ATF
   - amber — centrifugation
