@@ -361,11 +361,12 @@
 <meta charset="UTF-8">
 <title>Upstream Process Development Suite — Floor Plan (v2)</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Architects+Daughter&family=Caveat:wght@500;600;700&display=swap');
 
   :root{
     --paper:#f5f3ec;
     --ink:#1c2b3a;
+    --ink-soft:#3a4650;
     --blue:#2c5f8a;
     --blue-light:#c9d9e6;
     --line:#a9bccb;
@@ -379,6 +380,34 @@
     --slate-fill:#e9ecee;
     --danger:#a4453a;
     --white:#fffdf8;
+    /* Theme knobs — blueprint defaults; the hand-drafted theme overrides these */
+    --hand:'IBM Plex Sans',sans-serif;      /* display / heading face */
+    --hand-note:'IBM Plex Mono',monospace;  /* annotation / note face */
+    --sketch-r:5px;                          /* box corner radius */
+  }
+
+  /* ---------- Hand-drafted theme (vellum: graphite ink on warm tracing paper) ---------- */
+  :root[data-theme="hand"]{
+    --paper:#efe7d3;
+    --paper-2:#e7ddc4;
+    --ink:#33322c;
+    --ink-soft:#5a564a;
+    --blue:#4a5f74;
+    --blue-light:#d8cfb8;
+    --line:#b9ad8e;
+    --teal:#4f7d70;
+    --teal-fill:#dfe7dd;
+    --amber:#b07a35;
+    --amber-fill:#eee0c6;
+    --plum:#6f5079;
+    --plum-fill:#e6dbe4;
+    --slate:#6b6656;
+    --slate-fill:#e5ddc8;
+    --white:#f7f1e1;
+    --hand:'Architects Daughter','Comic Sans MS',cursive;
+    --hand-note:'Caveat',cursive;
+    /* organic, slightly-off corner radius — the hand-drawn-box trick */
+    --sketch-r:14px 8px 12px 9px / 9px 12px 8px 14px;
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:'IBM Plex Sans',sans-serif;background:var(--paper);color:var(--ink);}
@@ -440,9 +469,10 @@
   .savebox button:hover{background:var(--ink);color:#fff;}
   .sizes-locked .resize-handle{display:none;}
   .equip{
-    position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:5px;
+    position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:var(--sketch-r);
     cursor:grab;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,0.15);
     display:flex;flex-direction:column;
+    transform:rotate(var(--rot,0deg));
   }
   .equip:active{cursor:grabbing;}
   .equip.selected{outline:2.5px solid var(--danger);outline-offset:2px;z-index:5;}
@@ -463,6 +493,81 @@
   .titleblock table{width:100%;border-collapse:collapse;}
   .titleblock td{padding:3px 8px;border-top:1px solid var(--blue-light);}
   .titleblock td.label{color:var(--blue);width:50%;}
+
+  /* ============ Hand-drafted theme: per-element styling the var swap can't cover ============ */
+  :root[data-theme="hand"] body{
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E"),
+      radial-gradient(circle at 20% 15%, #f3ecd9, transparent 60%),
+      radial-gradient(circle at 85% 90%, #e6dbbe, transparent 55%),
+      var(--paper);
+  }
+  :root[data-theme="hand"] header{position:relative;}
+  :root[data-theme="hand"] header::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:1px;background:var(--ink);opacity:.35;}
+  :root[data-theme="hand"] header h1{font-family:var(--hand);font-size:27px;letter-spacing:.3px;}
+  :root[data-theme="hand"] header .sub{font-family:var(--hand-note);font-size:16px;}
+  :root[data-theme="hand"] .sidebar{background:linear-gradient(180deg,var(--white),#f2ecda);box-shadow:inset -6px 0 14px -12px rgba(0,0,0,.4);}
+  :root[data-theme="hand"] .sidebar h2{font-family:var(--hand);font-size:14px;letter-spacing:0.04em;border-bottom:1.5px solid var(--line);}
+  :root[data-theme="hand"] .stat-row b{font-variant-numeric:tabular-nums;}
+  :root[data-theme="hand"] .bar-track{height:9px;border-radius:8px 6px 7px 5px/5px 7px 6px 8px;border:1px solid var(--line);}
+  :root[data-theme="hand"] .bar-fill{background:repeating-linear-gradient(45deg,var(--blue),var(--blue) 5px,#5a708a 5px,#5a708a 10px);transition:width .6s cubic-bezier(.22,1,.36,1);}
+  :root[data-theme="hand"] .swatch{width:12px;height:12px;border-radius:6px 3px 5px 4px/4px 5px 3px 6px;border:1px solid rgba(0,0,0,.25);}
+  :root[data-theme="hand"] .icon-btn{transition:transform .15s ease,color .15s ease;}
+  :root[data-theme="hand"] .icon-btn:hover{transform:scale(1.25);}
+  :root[data-theme="hand"] .rotate-btn:hover{transform:rotate(45deg) scale(1.2);}
+  :root[data-theme="hand"] button.add-btn{padding:9px;border-radius:var(--sketch-r);font-family:var(--hand);font-size:14px;transition:transform .15s ease,background .2s ease;}
+  :root[data-theme="hand"] button.add-btn:hover{transform:translateY(-1px) rotate(-.4deg);}
+  :root[data-theme="hand"] .legend{font-size:12px;line-height:1.9;font-family:var(--hand-note);}
+  :root[data-theme="hand"] .toolbar button{font-family:var(--hand);font-size:12.5px;padding:6px 11px;border:1.5px solid var(--ink);border-radius:var(--sketch-r);transition:transform .15s ease,background .2s ease,color .2s ease;}
+  :root[data-theme="hand"] .toolbar button:hover{transform:translateY(-1px) rotate(-.5deg);}
+  :root[data-theme="hand"] .hint{font-size:12.5px;font-family:var(--hand-note);}
+  :root[data-theme="hand"] .note-box{font-size:12.5px;border:1.5px solid var(--line);border-radius:var(--sketch-r);font-family:var(--hand-note);box-shadow:2px 2px 0 rgba(0,0,0,.06);}
+  :root[data-theme="hand"] .walkbox{border:1.5px solid var(--line);border-radius:var(--sketch-r);box-shadow:2px 2px 0 rgba(0,0,0,.06);}
+  :root[data-theme="hand"] .walkbox .wb-total b{font-size:19px;font-family:var(--hand);font-variant-numeric:tabular-nums;}
+  :root[data-theme="hand"] .walk-row{font-size:12px;font-family:var(--hand-note);transition:transform .15s ease;}
+  :root[data-theme="hand"] .walk-row:hover{transform:translateX(2px);}
+  :root[data-theme="hand"] .walk-row input{accent-color:var(--ink);}
+  :root[data-theme="hand"] .walk-row .wswatch{width:18px;height:5px;border-radius:3px;}
+  :root[data-theme="hand"] .walk-row .wft{font-size:10.5px;font-variant-numeric:tabular-nums;}
+  :root[data-theme="hand"] .walkbox .wb-hint{font-size:11px;font-family:var(--hand-note);}
+  :root[data-theme="hand"] .lockToggle{font-size:12px;font-family:var(--hand-note);}
+  :root[data-theme="hand"] .lockToggle input{accent-color:var(--ink);}
+  :root[data-theme="hand"] .savebox{border:1.5px solid var(--line);border-radius:var(--sketch-r);box-shadow:2px 2px 0 rgba(0,0,0,.06);}
+  :root[data-theme="hand"] .savebox .sb-head{font-size:14px;font-family:var(--hand);}
+  :root[data-theme="hand"] .savebox button{font-family:var(--hand);font-size:11.5px;border:1.5px solid var(--ink);border-radius:8px 5px 7px 4px/4px 7px 5px 8px;}
+  :root[data-theme="hand"] .preset-picker select,:root[data-theme="hand"] .theme-picker select{background:var(--white);color:var(--ink);}
+  :root[data-theme="hand"] .equip{
+    border:1.6px solid var(--ink-soft);border-radius:var(--sketch-r);
+    box-shadow:1.5px 1.5px 0 rgba(51,50,44,.22), 0 3px 7px rgba(0,0,0,.10);
+    transform:rotate(var(--rot,0deg)) translateY(var(--lift,0px)) scale(var(--pop,1));
+    transition:box-shadow .22s ease, filter .22s ease, transform .28s cubic-bezier(.34,1.56,.64,1);
+    will-change:transform;
+  }
+  :root[data-theme="hand"] .equip.dragging{
+    --lift:-4px;box-shadow:5px 9px 14px rgba(0,0,0,.28);filter:saturate(1.05);
+    transition:box-shadow .15s ease, filter .15s ease;z-index:6;
+  }
+  :root[data-theme="hand"] .equip.selected{outline:2.5px dashed var(--danger);outline-offset:3px;}
+  :root[data-theme="hand"] .equip .lbl{font-family:var(--hand);font-size:9.5px;text-shadow:0 0 2px var(--paper),0 0 2px var(--paper),0 0 3px var(--paper);}
+  :root[data-theme="hand"] .equip .dimtag{color:var(--ink-soft);text-shadow:0 0 2px var(--paper),0 0 2px var(--paper);}
+  :root[data-theme="hand"] .resize-handle{border:2px solid var(--paper);}
+  :root[data-theme="hand"] .titleblock{box-shadow:3px 3px 0 rgba(51,50,44,.18);border-radius:3px 2px 3px 2px;}
+  :root[data-theme="hand"] .titleblock .tb-head{font-size:13px;font-family:var(--hand);letter-spacing:.4px;}
+  :root[data-theme="hand"] .titleblock td.label{font-family:var(--hand-note);font-size:12.5px;}
+  /* one-time load animations (hand theme only) */
+  @keyframes sketchPop{
+    0%{opacity:0;transform:rotate(var(--rot,0deg)) scale(.72) translateY(6px);}
+    60%{opacity:1;transform:rotate(var(--rot,0deg)) scale(1.06);}
+    100%{opacity:1;transform:rotate(var(--rot,0deg)) scale(1);}
+  }
+  :root[data-theme="hand"] .equip.sketch-in{animation:sketchPop .5s cubic-bezier(.34,1.56,.64,1) backwards;}
+  :root[data-theme="hand"] .equip.sketch-in .lbl,:root[data-theme="hand"] .equip.sketch-in .dimtag{animation:inkFade .5s ease both;animation-delay:inherit;}
+  @keyframes inkFade{from{opacity:0;}to{opacity:1;}}
+  @keyframes wallDraw{to{stroke-dashoffset:0;}}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important;transition-duration:.001ms !important;}
+  }
+
   @media print{
     .sidebar,.toolbar,.hint{display:none !important;}
     .canvas-wrap{padding:0;}
@@ -474,7 +579,7 @@
 <header>
   <h1>Upstream Process Development Suite — traced to provided site plan</h1>
   <div class="sub">1,409 SF working area + adjacent RM 34166 (analytical storage) &nbsp;|&nbsp; drag/resize equipment &nbsp;|&nbsp; storage room shown for reference, not editable</div>
-  <div class="preset-picker"><label for="presetSelect">Layout preset</label><select id="presetSelect"></select></div>
+  <div class="preset-picker"><label for="presetSelect">Layout preset</label><select id="presetSelect"></select>&nbsp;&nbsp;<label for="themeSelect">Theme</label><select id="themeSelect"></select></div>
 </header>
 
 <div class="app">
@@ -902,79 +1007,45 @@ function ft(v){ return v*PPF; }
 function pt(x,y){ return `${ft(x)},${ft(y)}`; }
 
 // ---------- Background: walls, notches, doors, storage room ----------
-let svgParts = [];
+let activeTheme = 'blueprint';   // 'blueprint' | 'hand' — set before buildBg() runs
+let firstRender = true;          // drives the one-time hand-theme "sketch itself in" load animation
+// Palette + inking style per theme. Blueprint reproduces the original crisp
+// draft; hand adds warm vellum ink colors, a hand-lettering face, and roughen
+// filters that give every stroke a subtle hand-drawn waver.
+const BG_THEMES = {
+  blueprint: {
+    gridStroke:'#c7d5df', gridOp:'1', hatch:'#9aa7ae', hatchW:'2',
+    ink:'#1c2b3a', inkW:'3', inkSoft:'#8a9299', rust:'#a4453a', blue:'#2c5f8a',
+    font:'IBM Plex Mono', paper:'#f5f3ec', sfSize:15, dimSize:9,
+    colFill:'#cfd4d6', colStroke:'#5b6b7a', storFill:'#eef1ee',
+    shelfFill:'#dfe6ea', shelfStroke:'#5b6b7a', shelfText:'#1c2b3a',
+    rmFill:'#fff', shaftText:'#3a4650',
+    f:'', fs:'', drawWall:false, roughDefs:''
+  },
+  hand: {
+    gridStroke:'#cabf9f', gridOp:'0.7', hatch:'#6b6656', hatchW:'1.6',
+    ink:'#33322c', inkW:'2.6', inkSoft:'#6b6656', rust:'#a4453a', blue:'#4a5f74',
+    font:"'Architects Daughter','Comic Sans MS',cursive", paper:'#efe7d3', sfSize:19, dimSize:12,
+    colFill:'#ded4b8', colStroke:'#6b6656', storFill:'#e7ddc4',
+    shelfFill:'#ded4b8', shelfStroke:'#6b6656', shelfText:'#33322c',
+    rmFill:'#f7f1e1', shaftText:'#6b6656',
+    f:' filter="url(#rough)"', fs:' filter="url(#roughSoft)"', drawWall:true,
+    roughDefs:`
+  <filter id="rough" x="-4%" y="-4%" width="108%" height="108%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3.4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="roughSoft" x="-6%" y="-6%" width="112%" height="112%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>`
+  }
+};
 
-// grid inside main room
-svgParts.push(`<defs>
-  <pattern id="grid" width="${PPF}" height="${PPF}" patternUnits="userSpaceOnUse">
-    <path d="M ${PPF} 0 L 0 0 0 ${PPF}" fill="none" stroke="#c7d5df" stroke-width="1"/>
-  </pattern>
-  <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-    <line x1="0" y1="0" x2="0" y2="8" stroke="#9aa7ae" stroke-width="2"/>
-  </pattern>
-</defs>`);
-
-// main room polygon (with 1x1 ft column notches top-right & bottom-right), offset by STO_W
 const mx = STO_W;
 const mainPoly = [
   [mx+0,0],[mx+43,0],[mx+43,1],[mx+44,1],[mx+44,31],[mx+43,31],[mx+43,32],[mx+0,32]
 ];
-svgParts.push(`<polygon points="${mainPoly.map(p=>pt(p[0],p[1])).join(' ')}" fill="url(#grid)" fill-opacity="1" stroke="#1c2b3a" stroke-width="3"/>`);
-svgParts.push(`<polygon points="${mainPoly.map(p=>pt(p[0],p[1])).join(' ')}" fill="none" stroke="#a4453a" stroke-width="1.6" stroke-dasharray="6 4"/>`);
-
-// column notch hatch fill (small squares)
-svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(0)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"/>`);
-svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(31)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="#1c2b3a" stroke-width="1"/>`);
-svgParts.push(`<text x="${ft(mx+43.5)}" y="${ft(0.7)}" font-size="7" font-family="IBM Plex Mono" transform="rotate(90 ${ft(mx+43.5)} ${ft(0.7)})">COL</text>`);
-
-// label "1,409 SF"
-svgParts.push(`<text x="${ft(mx+22)}" y="${ft(16)}" text-anchor="middle" font-size="15" fill="#a4453a" font-family="IBM Plex Mono" font-weight="600">~1,409 SF</text>`);
-
-// doors: helper draws a gap + quarter circle swing
-function door(xFt,yFt,wFt,swingDir,label){
-  // swingDir: 'down','up' relative to wall, drawn as arc
-  const x0=ft(xFt), y0=ft(yFt), w=ft(wFt);
-  let arc='';
-  if(swingDir==='down'){
-    arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 1 ${x0+w} ${y0+w}" fill="none" stroke="#1c2b3a" stroke-width="1"/>
-           <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0+w}" stroke="#1c2b3a" stroke-width="1.6"/>`;
-  } else {
-    arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 0 ${x0+w} ${y0-w}" fill="none" stroke="#1c2b3a" stroke-width="1"/>
-           <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0-w}" stroke="#1c2b3a" stroke-width="1.6"/>`;
-  }
-  let lab = label ? `<text x="${x0+w/2}" y="${swingDir==='down'?y0-6:y0+14}" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#2c5f8a">${label}</text>` : '';
-  return `<rect x="${x0-1}" y="${y0-2}" width="${w+2}" height="4" fill="#f5f3ec"/>${arc}${lab}`;
-}
-
-svgParts.push(door(mx+8,0,3,'down',''));
-svgParts.push(door(mx+20,0,3,'down','CR'));
-svgParts.push(door(mx+29,0,3,'down',''));
-svgParts.push(door(mx+39,0,3,'down','CR'));
-svgParts.push(door(mx+18,32,3,'up',''));
-svgParts.push(door(mx+28,32,3,'up',''));
-// door connecting RM 34166 to main room
-svgParts.push(door(mx,17,3,'down',''));
-
-// dimension string (bottom)
-svgParts.push(`<text x="${ft(mx+22)}" y="${ft(32)+14}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a">44'-0" (approx.)</text>`);
-svgParts.push(`<text x="${ft(mx)-8}" y="${ft(16)}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#2c5f8a" transform="rotate(-90 ${ft(mx)-8} ${ft(16)})">32'-0" (approx.)</text>`);
-
-// ---------- RM 34166 — existing analytical storage (fixed, not editable) ----------
-// Top portion of this column is an existing shaft/feature outside either room's SF;
-// bottom portion is the actual 179 SF storage room per your site plan.
-svgParts.push(`<rect x="0" y="0" width="${ft(STO_W)}" height="${ft(16)}" fill="#cfd4d6" stroke="#5b6b7a" stroke-width="1.4"/>`);
-svgParts.push(`<line x1="0" y1="0" x2="${ft(STO_W)}" y2="${ft(16)}" stroke="#8a9299" stroke-width="1"/>`);
-svgParts.push(`<line x1="${ft(STO_W)}" y1="0" x2="0" y2="${ft(16)}" stroke="#8a9299" stroke-width="1"/>`);
-svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(8)}" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">EXISTING SHAFT/FEATURE</text>`);
-svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(9)}" text-anchor="middle" font-size="7.5" font-family="IBM Plex Mono" fill="#3a4650">(not in either room's SF)</text>`);
-
-svgParts.push(`<rect x="0" y="${ft(16)}" width="${ft(STO_W)}" height="${ft(16)}" fill="#eef1ee" stroke="#1c2b3a" stroke-width="3"/>`);
-svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(17.6)}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" font-weight="600">ANALYTICAL STORAGE</text>`);
-svgParts.push(`<rect x="${ft(1.2)}" y="${ft(18)}" width="${ft(4.4)}" height="${ft(2)}" fill="#fff" stroke="#2c5f8a"/>`);
-svgParts.push(`<text x="${ft(3.4)}" y="${ft(19.4)}" text-anchor="middle" font-size="8.5" font-family="IBM Plex Mono" fill="#2c5f8a">RM 34166</text>`);
-svgParts.push(`<text x="${ft(3.4)}" y="${ft(21)}" text-anchor="middle" font-size="8" font-family="IBM Plex Mono" fill="#a4453a">179 sf</text>`);
-
-// existing labeled storage/tank positions per your plan
 const shelves = [
   {x:6.8, y:16.6, w:1.4, h:1.3, label:'A5'},
   {x:6.8, y:18.0, w:1.4, h:1.3, label:'A5'},
@@ -984,17 +1055,110 @@ const shelves = [
   {x:6.8, y:24.2, w:1.4, h:1.3, label:'A6'},
   {x:6.8, y:25.6, w:1.4, h:1.3, label:'A7'},
 ];
-shelves.forEach(s=>{
-  svgParts.push(`<rect x="${ft(s.x)}" y="${ft(s.y)}" width="${ft(s.w)}" height="${ft(s.h)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
-  svgParts.push(`<text x="${ft(s.x+s.w/2)}" y="${ft(s.y+s.h/2+0.15)}" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" fill="#1c2b3a">${s.label}</text>`);
-});
-// floor-standing units A1, A2 at the bottom
-svgParts.push(`<rect x="${ft(0.6)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
-svgParts.push(`<text x="${ft(1.6)}" y="${ft(29.6)}" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A1</text>`);
-svgParts.push(`<rect x="${ft(2.8)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="#dfe6ea" stroke="#5b6b7a" stroke-width="1"/>`);
-svgParts.push(`<text x="${ft(3.8)}" y="${ft(29.6)}" text-anchor="middle" font-size="6.5" font-family="IBM Plex Mono" fill="#1c2b3a">A2</text>`);
 
-bg.innerHTML = svgParts.join('\n');
+function buildBg(){
+  const T = BG_THEMES[activeTheme] || BG_THEMES.blueprint;
+  const svgParts = [];
+
+  // grid + hatch patterns (+ roughen filters when the theme uses them)
+  svgParts.push(`<defs>
+  <pattern id="grid" width="${PPF}" height="${PPF}" patternUnits="userSpaceOnUse">
+    <path d="M ${PPF} 0 L 0 0 0 ${PPF}" fill="none" stroke="${T.gridStroke}" stroke-width="1" stroke-opacity="${T.gridOp}"/>
+  </pattern>
+  <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <line x1="0" y1="0" x2="0" y2="8" stroke="${T.hatch}" stroke-width="${T.hatchW}"/>
+  </pattern>${T.roughDefs}
+</defs>`);
+
+  // main room polygon (with 1x1 ft column notches), offset by STO_W
+  const mainPts = mainPoly.map(p=>pt(p[0],p[1])).join(' ');
+  if(T.drawWall){
+    // grid fill stays crisp (unfiltered); the ink wall gets roughened + drawn-on
+    svgParts.push(`<polygon points="${mainPts}" fill="url(#grid)" fill-opacity="1" stroke="none"/>`);
+    svgParts.push(`<polygon id="wallInk" points="${mainPts}" fill="none" stroke="${T.ink}" stroke-width="${T.inkW}" stroke-linejoin="round"${T.f}/>`);
+    svgParts.push(`<polygon points="${mainPts}" fill="none" stroke="${T.rust}" stroke-width="1.4" stroke-dasharray="7 5"${T.fs} opacity="0.75"/>`);
+  } else {
+    svgParts.push(`<polygon points="${mainPts}" fill="url(#grid)" fill-opacity="1" stroke="${T.ink}" stroke-width="${T.inkW}"/>`);
+    svgParts.push(`<polygon points="${mainPts}" fill="none" stroke="${T.rust}" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+  }
+
+  // column notch hatch fill (small squares)
+  svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(0)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="${T.ink}" stroke-width="1"${T.fs}/>`);
+  svgParts.push(`<rect x="${ft(mx+43)}" y="${ft(31)}" width="${ft(1)}" height="${ft(1)}" fill="url(#hatch)" stroke="${T.ink}" stroke-width="1"${T.fs}/>`);
+  svgParts.push(`<text x="${ft(mx+43.5)}" y="${ft(0.7)}" font-size="7" font-family="${T.font}" fill="${T.ink}" transform="rotate(90 ${ft(mx+43.5)} ${ft(0.7)})">COL</text>`);
+
+  // label "1,409 SF"
+  svgParts.push(`<text x="${ft(mx+22)}" y="${ft(16)}" text-anchor="middle" font-size="${T.sfSize}" fill="${T.rust}" font-family="${T.font}" font-weight="600">~1,409 SF</text>`);
+
+  // doors: helper draws a gap + quarter circle swing
+  function door(xFt,yFt,wFt,swingDir,label){
+    const x0=ft(xFt), y0=ft(yFt), w=ft(wFt);
+    const arcStroke = T.drawWall ? T.inkSoft : T.ink;   // blueprint drew the swing in full ink
+    let arc='';
+    if(swingDir==='down'){
+      arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 1 ${x0+w} ${y0+w}" fill="none" stroke="${arcStroke}" stroke-width="1"${T.fs}/>
+             <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0+w}" stroke="${T.ink}" stroke-width="1.6"${T.fs}/>`;
+    } else {
+      arc = `<path d="M ${x0} ${y0} A ${w} ${w} 0 0 0 ${x0+w} ${y0-w}" fill="none" stroke="${arcStroke}" stroke-width="1"${T.fs}/>
+             <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0-w}" stroke="${T.ink}" stroke-width="1.6"${T.fs}/>`;
+    }
+    let lab = label ? `<text x="${x0+w/2}" y="${swingDir==='down'?y0-6:y0+14}" text-anchor="middle" font-size="${T.drawWall?9:8}" font-family="${T.font}" fill="${T.blue}">${label}</text>` : '';
+    return `<rect x="${x0-1}" y="${y0-2}" width="${w+2}" height="4" fill="${T.paper}"/>${arc}${lab}`;
+  }
+
+  svgParts.push(door(mx+8,0,3,'down',''));
+  svgParts.push(door(mx+20,0,3,'down','CR'));
+  svgParts.push(door(mx+29,0,3,'down',''));
+  svgParts.push(door(mx+39,0,3,'down','CR'));
+  svgParts.push(door(mx+18,32,3,'up',''));
+  svgParts.push(door(mx+28,32,3,'up',''));
+  svgParts.push(door(mx,17,3,'down',''));   // door connecting RM 34166 to main room
+
+  // dimension string (bottom + left)
+  svgParts.push(`<text x="${ft(mx+22)}" y="${ft(32)+(T.drawWall?15:14)}" text-anchor="middle" font-size="${T.dimSize}" font-family="${T.font}" fill="${T.blue}">44'-0" (approx.)</text>`);
+  svgParts.push(`<text x="${ft(mx)-8}" y="${ft(16)}" text-anchor="middle" font-size="${T.dimSize}" font-family="${T.font}" fill="${T.blue}" transform="rotate(-90 ${ft(mx)-8} ${ft(16)})">32'-0" (approx.)</text>`);
+
+  // ---------- RM 34166 — existing analytical storage (fixed, not editable) ----------
+  svgParts.push(`<rect x="0" y="0" width="${ft(STO_W)}" height="${ft(16)}" fill="${T.colFill}" stroke="${T.inkSoft}" stroke-width="1.4"${T.fs}/>`);
+  svgParts.push(`<line x1="0" y1="0" x2="${ft(STO_W)}" y2="${ft(16)}" stroke="${T.inkSoft}" stroke-width="1" stroke-opacity="${T.drawWall?'0.6':'1'}"/>`);
+  svgParts.push(`<line x1="${ft(STO_W)}" y1="0" x2="0" y2="${ft(16)}" stroke="${T.inkSoft}" stroke-width="1" stroke-opacity="${T.drawWall?'0.6':'1'}"/>`);
+  svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(8)}" text-anchor="middle" font-size="${T.drawWall?8.5:7.5}" font-family="${T.font}" fill="${T.shaftText}">EXISTING SHAFT/FEATURE</text>`);
+  svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(9)}" text-anchor="middle" font-size="${T.drawWall?8.5:7.5}" font-family="${T.font}" fill="${T.shaftText}">(not in either room's SF)</text>`);
+
+  svgParts.push(`<rect x="0" y="${ft(16)}" width="${ft(STO_W)}" height="${ft(16)}" fill="${T.storFill}" stroke="${T.ink}" stroke-width="${T.inkW}"${T.f}/>`);
+  svgParts.push(`<text x="${ft(STO_W/2)}" y="${ft(17.6)}" text-anchor="middle" font-size="${T.drawWall?11:9}" font-family="${T.font}" fill="${T.ink}" font-weight="600">ANALYTICAL STORAGE</text>`);
+  svgParts.push(`<rect x="${ft(1.2)}" y="${ft(18)}" width="${ft(4.4)}" height="${ft(2)}" fill="${T.rmFill}" stroke="${T.blue}"${T.fs}/>`);
+  svgParts.push(`<text x="${ft(3.4)}" y="${ft(19.4)}" text-anchor="middle" font-size="${T.drawWall?9.5:8.5}" font-family="${T.font}" fill="${T.blue}">RM 34166</text>`);
+  svgParts.push(`<text x="${ft(3.4)}" y="${ft(21)}" text-anchor="middle" font-size="${T.drawWall?9:8}" font-family="${T.font}" fill="${T.rust}">179 sf</text>`);
+
+  // existing labeled storage/tank positions per your plan
+  shelves.forEach(s=>{
+    svgParts.push(`<rect x="${ft(s.x)}" y="${ft(s.y)}" width="${ft(s.w)}" height="${ft(s.h)}" fill="${T.shelfFill}" stroke="${T.shelfStroke}" stroke-width="1"${T.fs}/>`);
+    svgParts.push(`<text x="${ft(s.x+s.w/2)}" y="${ft(s.y+s.h/2+(T.drawWall?0.2:0.15))}" text-anchor="middle" font-size="${T.drawWall?7:6}" font-family="${T.font}" fill="${T.shelfText}">${s.label}</text>`);
+  });
+  // floor-standing units A1, A2 at the bottom
+  svgParts.push(`<rect x="${ft(0.6)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="${T.shelfFill}" stroke="${T.shelfStroke}" stroke-width="1"${T.fs}/>`);
+  svgParts.push(`<text x="${ft(1.6)}" y="${ft(T.drawWall?29.7:29.6)}" text-anchor="middle" font-size="${T.drawWall?7.5:6.5}" font-family="${T.font}" fill="${T.shelfText}">A1</text>`);
+  svgParts.push(`<rect x="${ft(2.8)}" y="${ft(28.5)}" width="${ft(2)}" height="${ft(2)}" fill="${T.shelfFill}" stroke="${T.shelfStroke}" stroke-width="1"${T.fs}/>`);
+  svgParts.push(`<text x="${ft(3.8)}" y="${ft(T.drawWall?29.7:29.6)}" text-anchor="middle" font-size="${T.drawWall?7.5:6.5}" font-family="${T.font}" fill="${T.shelfText}">A2</text>`);
+
+  bg.innerHTML = svgParts.join('\n');
+
+  // hand theme: the outer wall draws itself on, like ink following a ruler
+  if(T.drawWall){
+    const wi=document.getElementById('wallInk');
+    if(wi && typeof wi.getTotalLength==='function'){
+      try{
+        const L=wi.getTotalLength();
+        wi.style.strokeDasharray=L;
+        wi.style.strokeDashoffset=L;
+        void wi.getBoundingClientRect();   // force reflow so the animation runs from the offset state
+        wi.style.animation='wallDraw 1.25s cubic-bezier(.65,0,.35,1) .15s forwards';
+      }catch(e){}
+    }
+  }
+}
+buildBg();
 
 // ---------- Equipment icons (schematic, top-down) ----------
 function iconSVG(kind){
@@ -1682,21 +1846,24 @@ let selectedId=null, dragState=null, resizeState=null, sizeLocked=true;
 function renderRoom(){
   equipLayer.innerHTML='';
   equipLayer.classList.toggle('sizes-locked', sizeLocked);
-  items.forEach(it=>{
+  const handTheme = activeTheme==='hand';
+  items.forEach((it,idx)=>{
     const el=document.createElement('div');
     el.className='equip'+(it.id===selectedId?' selected':'');
     el.style.left=ft(it.x)+'px'; el.style.top=ft(it.y)+'px';
     el.style.width=ft(it.w)+'px'; el.style.height=ft(it.h)+'px';
     el.style.background=FILLS[it.color]||'#eee';
     el.style.borderColor=COLORS[it.color]||'#333';
-    const rot=it.rot||0; if(rot) el.style.transform='rotate('+rot+'deg)';
+    const rot=it.rot||0; el.style.setProperty('--rot', rot+'deg');   // composed with lift/pop in the hand theme
     el.dataset.id=it.id;
     el.innerHTML=`<div class="lbl">${it.name}</div>${iconSVG(it.icon)}<div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
     if(rot){ const l=el.querySelector('.lbl'); if(l) l.style.transform='rotate('+(-rot)+'deg)'; const d=el.querySelector('.dimtag'); if(d) d.style.transform='rotate('+(-rot)+'deg)'; }
+    if(handTheme && firstRender){ el.classList.add('sketch-in'); el.style.animationDelay=(0.35 + idx*0.05)+'s'; }
     el.addEventListener('mousedown',(e)=>startDrag(e,it));
     el.querySelector('.resize-handle').addEventListener('mousedown',(e)=>{e.stopPropagation();startResize(e,it);});
     equipLayer.appendChild(el);
   });
+  firstRender=false;
   renderList();
   updateStats();
   prepRouting();
@@ -1970,6 +2137,8 @@ function legPolyline(seq){
 function renderPaths(){
   if(!pathLayer) return;
   pathLayer.innerHTML='';
+  const handTheme = activeTheme==='hand';
+  const startFill = handTheme ? '#f7f1e1' : '#fff';   // start-dot core matches the paper
   const active=ACTIVITIES.filter(a=>shownActs.has(a.id));
   active.forEach((act,idx)=>{
     const off=(idx-(active.length-1)/2)*2;   // small nudge so coincident legs stay distinct
@@ -1981,9 +2150,10 @@ function renderPaths(){
       poly.setAttribute('fill','none');
       poly.setAttribute('stroke',act.color);
       poly.setAttribute('stroke-width','3');
-      poly.setAttribute('stroke-opacity','0.85');
+      poly.setAttribute('stroke-opacity', handTheme ? '0.9' : '0.85');
       poly.setAttribute('stroke-linejoin','round');
       poly.setAttribute('stroke-linecap','round');
+      if(handTheme) poly.setAttribute('filter','url(#roughSoft)');   // hand-inked wobble
       pathLayer.appendChild(poly);
       // dots at each station stop; ring the first to mark the start
       seq.forEach((sid,i)=>{
@@ -1992,7 +2162,7 @@ function renderPaths(){
         const c=document.createElementNS(SVGNS,'circle');
         c.setAttribute('cx',px); c.setAttribute('cy',py);
         c.setAttribute('r', i===0?4.5:3);
-        c.setAttribute('fill', i===0?'#fff':act.color);
+        c.setAttribute('fill', i===0?startFill:act.color);
         c.setAttribute('stroke',act.color); c.setAttribute('stroke-width', i===0?2.5:1);
         pathLayer.appendChild(c);
       });
@@ -2051,6 +2221,32 @@ function loadPreset(id){
 })();
 
 renderRoom();
+
+/* ---------- Visual themes (blueprint / hand-drafted) ---------- */
+const THEME_LABELS = { blueprint:'Blueprint', hand:'Hand-drafted' };
+function applyTheme(id){
+  if(!BG_THEMES[id]) id='blueprint';
+  activeTheme = id;
+  document.documentElement.setAttribute('data-theme', id);
+  try{ localStorage.setItem('labActiveTheme', id); }catch(e){}
+  firstRender = true;   // replay the hand-theme sketch-in on (re)apply
+  buildBg();            // re-ink the floor plan in the theme's palette
+  renderRoom();         // equipment + paths pick up theme styling
+}
+(function(){
+  const sel = document.getElementById('themeSelect'); if(!sel) return;
+  Object.keys(BG_THEMES).forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=THEME_LABELS[id]||id; sel.appendChild(o); });
+  let active = 'blueprint';
+  if(document.documentElement.dataset.pinned){
+    // An exported file carries its theme in the serialized <html data-theme> attribute.
+    active = document.documentElement.getAttribute('data-theme') || 'blueprint';
+  } else {
+    try{ const s=localStorage.getItem('labActiveTheme'); if(s&&BG_THEMES[s]) active=s; }catch(e){}
+  }
+  sel.value = active;
+  applyTheme(active);   // last render of startup — plays the sketch-in in the hand theme
+  sel.addEventListener('change', e=>{ if(BG_THEMES[e.target.value]) applyTheme(e.target.value); });
+})();
 
 </script>
 
