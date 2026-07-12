@@ -4,6 +4,28 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-12 — clearance & egress checks
+
+- Added a live validation overlay (`warnLayer`, mirroring `pathLayer`) that flags
+  three problems as you edit: **aisles** narrower than a settable minimum (default
+  3 ft), equipment **overlaps** (skipping intentional stacking — an instrument
+  whose centre sits inside a bench/island isn't flagged), and anything **blocking
+  a door / exit**. New sidebar "Clearance & egress" panel: toggle, min-aisle input,
+  and a live summary (`✓ clear` / `⚠ 3 — 1 overlap · 1 aisle · 1 door`); prefs
+  persist to localStorage.
+- Reused geometry: extracted `itemBox(it,pad)` from `prepRouting` (shared by router
+  + checks) and lifted the door list into a shared `DOORS` const that `buildBg`
+  draws and the checker reads for keep-clear zones. Warnings use the `--danger`
+  token so they read in all three themes.
+- Non-goals (deferred to TODO §7): full free-space aisle analysis and a
+  nearest-exit distance readout.
+- Recorded the broader feature backlog (equipment library, utilities roll-up,
+  auto-optimize, zones, adjacency rules, congestion heatmap, process-flow, BOM
+  export, background underlay, undo/redo) in `TODO.md` §7.
+- Verified headless (Edge): aisle/overlap/door/wall scenarios, stacking ignored,
+  toggle+summary+persistence, 0 route cut-throughs, path editor + all 3 themes
+  still clean.
+
 ## 2026-07-12 — user-configurable walking paths
 
 - Replaced the hard-coded `ACTIVITIES` array with an editable `walkPaths` model

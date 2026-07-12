@@ -120,3 +120,34 @@ related process steps.
 - [ ] Review with EHS for safety/egress compliance.
 - [ ] Review with facilities/engineering against CAD.
 - [ ] Review with process/operations team for workflow validation.
+
+## 7. Potential future tool features (backlog)
+
+Ideas surfaced while building the design tool; ordered roughly by value. The
+first (clearance & egress checks) is **done** — see `Status_update.md`.
+
+- [x] **Clearance & egress checks** — live overlay flagging too-narrow aisles
+      (settable min), equipment overlaps (ignoring intentional stacking), and
+      anything blocking a door / exit. Reuses the box geometry + `DOORS`.
+- [ ] **Equipment library** — drag common lab gear from a palette pre-loaded
+      with real footprints/categories (seed from `workflows/equipment_footprints.md`)
+      instead of add-then-resize.
+- [ ] **Utilities & requirements roll-up** — tag each item with power/gas/drain/
+      vacuum/exhaust/floor-load needs; total them for facilities and optionally
+      mark utility drops on the plan and flag items placed far from them.
+- [ ] **Auto-optimize placement** — use the defined weighted paths to propose a
+      rearrangement that minimizes total walking while respecting clearances;
+      user accepts or tweaks. (Also: nearest-exit distance readout via the router.)
+- [ ] **Functional zones** — draw/label areas (prep, upstream, harvest, storage,
+      gowning); per-zone area + check equipment sits in the right zone.
+- [ ] **Adjacency rules** — "must be near" / "must be apart" constraints with
+      live warnings (e.g. BSC↔incubator together; freezer away from heat).
+- [ ] **Traffic / congestion heatmap** — shade where the defined paths concentrate
+      foot traffic so those aisles can be widened.
+- [ ] **Process-flow direction** — clean-to-dirty / unidirectional material-flow
+      arrows + a check the layout follows them.
+- [ ] **Equipment schedule / BOM export** — print/CSV table of all items with
+      dimensions, category, utilities, counts, for procurement.
+- [ ] **Background floor-plan underlay** — drop a scaled CAD/photo image to trace
+      the real room instead of the hand-traced walls.
+- [ ] **Editing QoL** — undo/redo, alignment guides, overlap snapping.
