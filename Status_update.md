@@ -4,6 +4,33 @@
 > exists / did we already do X?" Add one short summary entry per session (at
 > session end), newest first. Keep it to outcomes; git history has the detail.
 
+## 2026-07-11 — routing fix, fit-to-width, label auto-placement, preset dropdown retired
+
+- **Collision avoidance fixed.** The visibility-graph router was letting legs cut
+  diagonally through an obstacle (it skipped a box when the segment endpoint was
+  that box's own corner) and, when a station sat inside shared furniture, falling
+  back to a straight line that clipped nearby boxes. Now: corner-to-corner
+  visibility no longer skips owner boxes (diagonals through interiors are
+  rejected, edge-hugging runs still pass), and start/end skip *every* box the
+  endpoint is inside. Verified in a real browser (headless Edge): 0 genuine
+  cut-throughs across all activity legs; the only remaining crossings are
+  equipment stacked on shared islands (unavoidable). Total ≈596 ft.
+- `endDrag`/`endResize` now re-render, so the routed paths + distance update the
+  moment you drop or resize an object (previously they stayed straight-line until
+  the next interaction).
+- **Fit-to-width / adjustable scale.** `PPF` (pixels-per-foot) is now dynamic; a
+  Scale slider + "Fit width" button rescale the whole drawing (walls, equipment,
+  paths) together, defaulting to fit the canvas and re-fitting on window resize.
+- **Label auto-placement.** Each equipment name now fits inside its box (wrapping
+  to 2 lines), rotates 90° to read along a tall-narrow box, or is written just
+  beside the box when it's too small — chosen by a size estimate, so it adapts as
+  you zoom. Verified real-DOM: 0 inside-labels overflow their box.
+- **Layout-preset dropdown removed** (we have Saved layouts). v2 is the default
+  arrangement and is also seeded as a restorable **"Default (v2)"** saved layout.
+- **Renamed default equipment:** STR500, STR200, STR50, Bench (was "Existing
+  island 1…"), Vi-Cell Blu, Flex 2. Station ids are unchanged, so the
+  walking-distance activities + Python script still line up.
+
 ## 2026-07-11 — cyber theme added; v3 preset removed
 
 - Added a third theme, **Cyber — HELIX HUD** (neon-on-dark: glass panels,

@@ -66,7 +66,7 @@ workflows/         workflow data + walking-distance analysis
 There is no package manager, bundler, or test runner. The whole project is plain
 HTML you open directly, plus one Python script:
 
-- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. Pick a **Theme** (Blueprint / Hand-drafted / Cyber) from the picker at the top (the "Layout preset" dropdown currently offers only **v2**). Drag to move, corner handle to resize, ↻ to rotate (90° swap), sidebar to rename/add/remove. "Download my edited layout" exports a new standalone HTML pinned to what's on screen (and to the current theme).
+- **Open / edit a layout:** open `layouts/upstream_lab_layout.html` in a browser. It opens the **v2** arrangement fit to the canvas width; use the **Scale** slider / **Fit width** button to zoom (all objects rescale together) and the **Theme** picker (Blueprint / Hand-drafted / Cyber). Drag to move, corner handle to resize, ↻ to rotate, sidebar to rename/add/remove. Equipment names auto-place (inside / rotated / beside the box). The **Saved layouts** panel stores named arrangements; the original v2 is seeded as **"Default (v2)"**. "Download my edited layout" exports a standalone HTML pinned to what's on screen (and to the current theme).
 - **Run the walking-distance analysis:** `python3 workflows/compute_walking_distance.py layouts/upstream_lab_layout.html` (optional second arg picks a preset; default `v2`).
 
 ## Design system
