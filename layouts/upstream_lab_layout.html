@@ -390,6 +390,7 @@
     /* effect tokens — inert here, lit up by the cyber theme */
     --glow:none; --glow2:none; --swatch-glow:none; --stage-glow:none;
     --icon-opacity:1; --icon-blend:normal;
+    --label-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;
   }
 
   /* ---------- Hand-drafted theme (vellum: graphite ink on warm tracing paper) ---------- */
@@ -414,6 +415,7 @@
     --hand-note:'Caveat',cursive;
     /* organic, slightly-off corner radius — the hand-drawn-box trick */
     --sketch-r:14px 8px 12px 9px / 9px 12px 8px 14px;
+    --label-shadow:0 0 2px var(--paper),0 0 2px var(--paper),0 0 3px var(--paper);
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:'IBM Plex Sans',sans-serif;background:var(--paper);color:var(--ink);}
@@ -423,6 +425,9 @@
   .preset-picker{margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
   .preset-picker label{color:var(--ink);font-weight:600;margin-right:6px;}
   .preset-picker select{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 6px;border:1px solid var(--ink);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;}
+  .preset-picker #scaleRange{vertical-align:middle;width:120px;cursor:pointer;}
+  .preset-picker .fit-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;margin-left:6px;border:1px solid var(--ink);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;}
+  .preset-picker .fit-btn:hover{background:var(--ink);color:var(--white);}
   .app{display:flex;align-items:flex-start;}
   .sidebar{width:330px;flex-shrink:0;padding:16px 18px 40px;border-right:2px solid var(--ink);min-height:calc(100vh - 84px);background:var(--white);overflow-y:auto;}
   .sidebar h2{font-size:11.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--blue);border-bottom:1px solid var(--line);padding-bottom:6px;margin:16px 0 8px;}
@@ -484,11 +489,17 @@
   .equip.selected{outline:2.5px solid var(--danger);outline-offset:2px;z-index:5;}
   .equip svg{flex:1;width:100%;height:100%;display:block;opacity:var(--icon-opacity);mix-blend-mode:var(--icon-blend);}
   .equip .lbl{
-    position:absolute;left:2px;right:2px;top:2px;
+    position:absolute;inset:2px;display:flex;align-items:center;justify-content:center;
     font-size:9px;font-weight:600;text-align:center;line-height:1.1;color:var(--ink);
-    text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;
-    pointer-events:none;
+    overflow:hidden;pointer-events:none;
   }
+  .equip .lbl span{overflow-wrap:anywhere;max-width:100%;text-shadow:var(--label-shadow);}
+  /* fit along the taller axis */
+  .equip .lbl.lbl-rot span{transform:rotate(90deg);white-space:nowrap;}
+  /* too small for either — write it beside the box (below), not clipped */
+  .equip .lbl.lbl-out{inset:auto;top:100%;left:50%;margin-top:3px;overflow:visible;z-index:3;
+    background:var(--white);border:1px solid var(--line);border-radius:3px;padding:0 3px;}
+  .equip .lbl.lbl-out span{white-space:nowrap;text-shadow:none;}
   .equip .dimtag{
     position:absolute;bottom:2px;right:3px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--ink);
     text-shadow:0 0 2px #fff,0 0 2px #fff;pointer-events:none;
@@ -582,6 +593,7 @@
     --glow2:0 0 5px rgba(167,139,250,.55), 0 0 14px rgba(167,139,250,.28);
     --swatch-glow:0 0 5px currentColor; --stage-glow:drop-shadow(0 0 22px rgba(125,211,252,0.07));
     --icon-opacity:0.42; --icon-blend:screen;
+    --label-shadow:0 0 3px #000,0 1px 2px #000,0 0 2px #000;
   }
   :root[data-theme="cyber"] body{
     background:
@@ -673,7 +685,7 @@
 <header>
   <h1>Upstream Process Development Suite — traced to provided site plan</h1>
   <div class="sub">1,409 SF working area + adjacent RM 34166 (analytical storage) &nbsp;|&nbsp; drag/resize equipment &nbsp;|&nbsp; storage room shown for reference, not editable</div>
-  <div class="preset-picker"><label for="presetSelect">Layout preset</label><select id="presetSelect"></select>&nbsp;&nbsp;<label for="themeSelect">Theme</label><select id="themeSelect"></select></div>
+  <div class="preset-picker"><label for="scaleRange">Scale</label><input type="range" id="scaleRange" min="8" max="30" step="1"><button type="button" id="fitBtn" class="fit-btn">Fit width</button>&nbsp;&nbsp;<label for="themeSelect">Theme</label><select id="themeSelect"></select></div>
 </header>
 
 <div class="app">
@@ -1077,7 +1089,7 @@
 <script>
 document.getElementById('tbDate').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
 
-const PPF = 14; // pixels per foot
+let PPF = 14; // pixels per foot (dynamic — see applyScale / fit-to-width)
 const STO_W = 11;     // RM 34166 (analytical storage) width, ft
 const MAIN_W = 44;    // main working room width, ft
 const H = 32;          // shared depth, ft
@@ -1397,7 +1409,7 @@ const FILLS  = {teal:'var(--fill-teal)', amber:'var(--fill-amber)', plum:'var(--
 const ITEMS_V2 = [
   {
     "id": "sartorius500",
-    "name": "Sartorius BIOSTAT STR 500L + control tower",
+    "name": "STR500",
     "w": 7,
     "h": 7.5,
     "x": 35,
@@ -1417,7 +1429,7 @@ const ITEMS_V2 = [
   },
   {
     "id": "200L-a",
-    "name": "200L bioreactor A",
+    "name": "STR200",
     "w": 5,
     "h": 5,
     "x": 36,
@@ -1427,7 +1439,7 @@ const ITEMS_V2 = [
   },
   {
     "id": "50L-a",
-    "name": "50L bioreactor A",
+    "name": "STR50",
     "w": 3.5,
     "h": 3,
     "x": 35.5,
@@ -1477,7 +1489,7 @@ const ITEMS_V2 = [
   },
   {
     "id": "islandA",
-    "name": "Existing island 1 — cell &amp; metabolite analytics",
+    "name": "Bench",
     "w": 6,
     "h": 18,
     "x": 7,
@@ -1487,7 +1499,7 @@ const ITEMS_V2 = [
   },
   {
     "id": "vicell",
-    "name": "Vi-CELL BLU cell viability analyzer",
+    "name": "Vi-Cell Blu",
     "w": 2.2,
     "h": 2.2,
     "x": 11.5,
@@ -1497,7 +1509,7 @@ const ITEMS_V2 = [
   },
   {
     "id": "nova",
-    "name": "Nova BioProfile FLEX2 (metabolite/gas)",
+    "name": "Flex 2",
     "w": 2,
     "h": 2,
     "x": 11.5,
@@ -1666,13 +1678,24 @@ const ITEMS_V2 = [
     "icon": "freezer"
   }
 ];
-const LAYOUTS = {
-  v2: {label:"v2 — as provided (traced site plan)", title:"Upstream Process Development Suite — Floor Plan (v2)", heading:"Upstream Process Development Suite — traced to provided site plan", note:"<b>Updated from your actual site plan:</b> the green \"ANALYTICAL\" zone is removed — that floor is now open and folded into the working layout below. I kept your <b>3 existing islands</b> in roughly their real positions (evenly spaced, aligned with the two lower doors so the aisles between islands double as the walk paths to those doors) instead of adding new casework, since they're already built with utility drops.\n      <br><br>\n      <b>Island assignments:</b> Island 1 — Vi-CELL BLU + Nova BioProfile FLEX2. Island 2 (center) — benchtop centrifuge, balance, data station. Island 3 — osmometer + sample-prep cart. Each island's existing sink/utility drop is marked; verify what's actually plumbed to each before assigning equipment that needs power vs. drain vs. vacuum.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V2}
-};
-let activePreset = 'v2';
-let items = JSON.parse(JSON.stringify(ITEMS_V2));
+let items = JSON.parse(JSON.stringify(ITEMS_V2));   // v2 is the sole built-in arrangement; iterations live in Saved layouts
 
 let selectedId=null, dragState=null, resizeState=null, sizeLocked=true;
+
+// Decide where a name goes: inside upright ('in'), inside rotated 90° along the
+// long axis ('rot'), or beside the box ('out'). Uses a monospace-ish width
+// estimate so it's deterministic (no reflow measurement needed). w/h are the
+// usable interior px (box size minus a small padding).
+function labelFit(name, w, h){
+  const fs=9, cw=fs*0.56, lh=fs*1.18;      // ~char width & line height at 9px
+  const tw=(name||'').trim().length*cw;    // one-line text width
+  if(w<=2||h<=2) return 'out';
+  if(tw<=w && lh<=h) return 'in';          // fits on one line
+  if(tw<=2*w && 2*lh<=h) return 'in';      // wraps to two lines
+  if(tw<=h && lh<=w) return 'rot';         // reads along the taller axis
+  if(tw<=2*h && 2*lh<=w) return 'rot';
+  return 'out';                            // too small either way — write beside it
+}
 
 function renderRoom(){
   equipLayer.innerHTML='';
@@ -1687,8 +1710,14 @@ function renderRoom(){
     el.style.borderColor=COLORS[it.color]||'#333';
     const rot=it.rot||0; el.style.setProperty('--rot', rot+'deg');   // composed with lift/pop in the hand theme
     el.dataset.id=it.id;
-    el.innerHTML=`<div class="lbl">${it.name}</div>${iconSVG(it.icon)}<div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
-    if(rot){ const l=el.querySelector('.lbl'); if(l) l.style.transform='rotate('+(-rot)+'deg)'; const d=el.querySelector('.dimtag'); if(d) d.style.transform='rotate('+(-rot)+'deg)'; }
+    el.innerHTML=`${iconSVG(it.icon)}<div class="lbl"><span>${it.name}</span></div><div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
+    const lblEl=el.querySelector('.lbl');
+    const mode=labelFit(it.name, it.w*PPF-6, it.h*PPF-6);
+    if(mode==='rot') lblEl.classList.add('lbl-rot');
+    else if(mode==='out') lblEl.classList.add('lbl-out');
+    const outPre=(mode==='out')?'translateX(-50%) ':'';
+    if(rot||mode==='out') lblEl.style.transform=outPre+(rot?('rotate('+(-rot)+'deg)'):'');
+    const d=el.querySelector('.dimtag'); if(rot&&d) d.style.transform='rotate('+(-rot)+'deg)';
     if(handTheme && firstRender){ el.classList.add('sketch-in'); el.style.animationDelay=(0.35 + idx*0.05)+'s'; }
     el.addEventListener('mousedown',(e)=>startDrag(e,it));
     el.querySelector('.resize-handle').addEventListener('mousedown',(e)=>{e.stopPropagation();startResize(e,it);});
@@ -1716,7 +1745,7 @@ function onDrag(e){
   nx=Math.max(0,Math.min(MAIN_W-it.w,nx)); ny=Math.max(0,Math.min(H-it.h,ny));
   it.x=nx; it.y=ny; renderRoom();
 }
-function endDrag(){dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);}
+function endDrag(){dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);renderRoom();/* re-run obstacle-aware routing now the gesture is over */}
 
 function startResize(e,it){
   if(sizeLocked) return;
@@ -1732,7 +1761,7 @@ function onResize(e){
   nw=Math.min(nw,MAIN_W-it.x); nh=Math.min(nh,H-it.y);
   it.w=nw; it.h=nh; renderRoom();
 }
-function endResize(){resizeState=null;document.removeEventListener('mousemove',onResize);document.removeEventListener('mouseup',endResize);}
+function endResize(){resizeState=null;document.removeEventListener('mousemove',onResize);document.removeEventListener('mouseup',endResize);renderRoom();/* re-route around the new size */}
 
 function renderList(){
   const list=document.getElementById('itemList'); list.innerHTML='';
@@ -1777,10 +1806,8 @@ function exportLayout(){
   renderRoom();
   const itemsJson = JSON.stringify(items, null, 2);
   document.documentElement.setAttribute('data-pinned','1');
-  document.documentElement.setAttribute('data-preset', activePreset);
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   document.documentElement.removeAttribute('data-pinned');
-  document.documentElement.removeAttribute('data-preset');
   html = html.replace(/let items\s*=\s*JSON\.parse\([^;]*\);/, 'let items = ' + itemsJson + ';');
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
@@ -1847,9 +1874,9 @@ function segHitsBox(ax,ay,bx,by,b){
 
 // per-render routing state (visibility graph over expanded-box corners)
 let _obst=[], _nodes=[], _adj=[], _routeCache={};
-function visible(ax,ay,bx,by,skip1,skip2){
+function visible(ax,ay,bx,by,skip){
   for(const o of _obst){
-    if(o.id===skip1||o.id===skip2) continue;
+    if(skip && skip.has(o.id)) continue;   // skip is a Set of obstacle ids to ignore (or undefined)
     if(segHitsBox(ax,ay,bx,by,o)) return false;
   }
   return true;
@@ -1875,7 +1902,11 @@ function prepRouting(){
   const n=_nodes.length; _adj=Array.from({length:n},()=>[]);
   for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
     const a=_nodes[i], b=_nodes[j];
-    if(visible(a.x,a.y,b.x,b.y,a.owner,b.owner)){
+    // Don't skip owner boxes here: corners belong to expanded boxes, so an
+    // edge-hugging run grazes the (inset) boundary and passes, while a diagonal
+    // across a box crosses its interior and is correctly rejected. Skipping the
+    // owner would let routes cut straight through their own obstacle.
+    if(visible(a.x,a.y,b.x,b.y)){
       const d=Math.hypot(a.x-b.x,a.y-b.y);
       _adj[i].push([j,d]); _adj[j].push([i,d]);
     }
@@ -1888,13 +1919,19 @@ function routeLeg(aId,bId){
   const straight={dist:Math.hypot(sx-tx,sy-ty), pts:[[sx,sy],[tx,ty]]};
   // keep dragging/resizing smooth: skip routing mid-gesture
   if(typeof dragState!=='undefined' && (dragState||resizeState)) return straight;
-  if(visible(sx,sy,tx,ty,aId,bId)) return straight;
+  // A start/end that sits inside other boxes (e.g. an instrument stacked on a
+  // shared island) can't avoid them — skip every box the endpoint is inside, so
+  // the router can still route cleanly around the genuinely separate obstacles.
+  const inside=(px,py)=>_obst.filter(o=>px>o.x+0.01&&px<o.x+o.w-0.01&&py>o.y+0.01&&py<o.y+o.h-0.01).map(o=>o.id);
+  const skipS=new Set([aId,...inside(sx,sy)]);
+  const skipT=new Set([bId,...inside(tx,ty)]);
+  if(visible(sx,sy,tx,ty,new Set([...skipS,...skipT]))) return straight;
   const n=_nodes.length, S=n, T=n+1, N=n+2;
   const adj=_adj.map(a=>a.slice()); adj.push([]); adj.push([]);
   for(let i=0;i<n;i++){
     const nd=_nodes[i];
-    if(visible(sx,sy,nd.x,nd.y,aId,nd.owner)){ const d=Math.hypot(sx-nd.x,sy-nd.y); adj[S].push([i,d]); adj[i].push([S,d]); }
-    if(visible(tx,ty,nd.x,nd.y,bId,nd.owner)){ const d=Math.hypot(tx-nd.x,ty-nd.y); adj[T].push([i,d]); adj[i].push([T,d]); }
+    if(visible(sx,sy,nd.x,nd.y,skipS)){ const d=Math.hypot(sx-nd.x,sy-nd.y); adj[S].push([i,d]); adj[i].push([S,d]); }
+    if(visible(tx,ty,nd.x,nd.y,skipT)){ const d=Math.hypot(tx-nd.x,ty-nd.y); adj[T].push([i,d]); adj[i].push([T,d]); }
   }
   const dist=new Array(N).fill(Infinity), prev=new Array(N).fill(-1), done=new Array(N).fill(false);
   dist[S]=0;
@@ -2014,6 +2051,7 @@ renderWalkList();
 /* ---------- Size lock + saved layouts ---------- */
 (function(){ const lock=document.getElementById('lockSizes'); if(lock) lock.addEventListener('change',e=>{ sizeLocked=e.target.checked; renderRoom(); }); })();
 const LS_KEY='labSavedLayouts_v1';
+const DEFAULT_LAYOUT_NAME='Default (v2)';
 let _memSaved={};
 function loadSaved(){ try{ const s=localStorage.getItem(LS_KEY); return s?JSON.parse(s):Object.assign({},_memSaved); }catch(e){ return Object.assign({},_memSaved); } }
 function persistSaved(o){ _memSaved=o; try{ localStorage.setItem(LS_KEY,JSON.stringify(o)); }catch(e){} }
@@ -2030,36 +2068,40 @@ function saveLayoutAs(n){ const saved=loadSaved(); saved[n]=JSON.parse(JSON.stri
   if(del) del.addEventListener('click',()=>{ if(!sel.value) return; const saved=loadSaved(); delete saved[sel.value]; persistSaved(saved); refreshLayoutSelect(); });
   if(exp) exp.addEventListener('click',()=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(loadSaved(),null,2)); a.download='saved_layouts.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
   if(imp&&file){ imp.addEventListener('click',()=>file.click()); file.addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=JSON.parse(rd.result); const saved=loadSaved(); Object.assign(saved,obj); persistSaved(saved); refreshLayoutSelect(); alert('Imported '+Object.keys(obj).length+' layout(s)'); }catch(err){ alert('Could not read that file'); } }; rd.readAsText(f); e.target.value=''; }); }
+  // seed the original v2 arrangement as a restorable "Default" saved layout
+  const seeded=loadSaved(); if(!seeded[DEFAULT_LAYOUT_NAME]){ seeded[DEFAULT_LAYOUT_NAME]=JSON.parse(JSON.stringify(ITEMS_V2)); persistSaved(seeded); }
   refreshLayoutSelect();
 })();
 
-/* ---------- Layout presets (v2/v3 built in) ---------- */
-function loadPreset(id){
-  const p = LAYOUTS[id]; if(!p) return;
-  activePreset = id;
-  items = JSON.parse(JSON.stringify(p.items)); selectedId = null;
-  document.title = p.title;
-  const h1 = document.querySelector('header h1'); if(h1) h1.textContent = p.heading;
-  const nb = document.querySelector('.note-box'); if(nb) nb.innerHTML = p.note;
-  try{ localStorage.setItem('labActivePreset', id); }catch(e){}
-  renderRoom();
+/* ---------- View scale (fit-to-width / user-adjustable zoom) ---------- */
+// PPF (pixels-per-foot) drives every ft() conversion, so changing it rescales
+// the whole drawing — walls, equipment, paths — together.
+let fitMode = true;
+const MIN_PPF = 8, MAX_PPF = 30;
+function fitPPF(){
+  const wrap = document.querySelector('.canvas-wrap');
+  if(!wrap || !wrap.clientWidth) return PPF;
+  const avail = wrap.clientWidth - 68;   // 34px padding each side
+  return Math.max(MIN_PPF, Math.min(MAX_PPF, Math.floor(avail / TOTAL_W)));
+}
+function applyScale(ppf){
+  PPF = Math.max(MIN_PPF, Math.min(MAX_PPF, ppf));
+  stage.style.width=(TOTAL_W*PPF)+'px'; stage.style.height=(H*PPF)+'px';
+  bg.setAttribute('width', TOTAL_W*PPF); bg.setAttribute('height', H*PPF);
+  bg.setAttribute('viewBox', `0 0 ${TOTAL_W*PPF} ${H*PPF}`);
+  equipLayer.style.width=(MAIN_W*PPF)+'px'; equipLayer.style.height=(H*PPF)+'px'; equipLayer.style.left=(STO_W*PPF)+'px';
+  if(pathLayer){ pathLayer.setAttribute('width', MAIN_W*PPF); pathLayer.setAttribute('height', H*PPF); pathLayer.style.left=(STO_W*PPF)+'px'; }
+  const r=document.getElementById('scaleRange'); if(r && +r.value!==PPF) r.value=PPF;
+  buildBg();     // grid pitch + wall geometry are PPF-dependent
+  renderRoom();  // equipment + paths reposition through ft()
 }
 (function(){
-  const sel = document.getElementById('presetSelect'); if(!sel) return;
-  Object.keys(LAYOUTS).forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=LAYOUTS[id].label; sel.appendChild(o); });
-  let active = 'v2';
-  if(document.documentElement.dataset.pinned){
-    // An exported file: keep its inline (pinned) arrangement; don't auto-switch.
-    active = document.documentElement.dataset.preset || 'v2';
-  } else {
-    try{ const s=localStorage.getItem('labActivePreset'); if(s&&LAYOUTS[s]) active=s; }catch(e){}
-    if(active !== 'v2') loadPreset(active);   // v2 is already the inline default
-  }
-  sel.value = active;
-  sel.addEventListener('change', e=>{ if(LAYOUTS[e.target.value]) loadPreset(e.target.value); });
+  const r=document.getElementById('scaleRange'), fit=document.getElementById('fitBtn');
+  if(r){ r.min=MIN_PPF; r.max=MAX_PPF; r.addEventListener('input', e=>{ fitMode=false; applyScale(+e.target.value); }); }
+  if(fit){ fit.addEventListener('click', ()=>{ fitMode=true; applyScale(fitPPF()); }); }
+  let rt; window.addEventListener('resize', ()=>{ if(!fitMode) return; clearTimeout(rt); rt=setTimeout(()=>applyScale(fitPPF()), 120); });
+  applyScale(fitPPF());   // default: fit the drawing to the canvas width
 })();
-
-renderRoom();
 
 /* ---------- Visual themes (blueprint / hand-drafted) ---------- */
 const THEME_LABELS = { blueprint:'Blueprint', hand:'Hand-drafted', cyber:'Cyber — HELIX HUD' };
