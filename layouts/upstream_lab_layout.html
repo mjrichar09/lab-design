@@ -384,6 +384,12 @@
     --hand:'IBM Plex Sans',sans-serif;      /* display / heading face */
     --hand-note:'IBM Plex Mono',monospace;  /* annotation / note face */
     --sketch-r:5px;                          /* box corner radius */
+    /* equipment category tokens — JS COLORS/FILLS read these so a theme can recolor the boxes */
+    --cat-teal:#3e7c7c; --cat-amber:#b9822f; --cat-plum:#6b4c7a; --cat-slate:#5b6b7a; --cat-blue:#2c5f8a;
+    --fill-teal:var(--teal-fill); --fill-amber:var(--amber-fill); --fill-plum:var(--plum-fill); --fill-slate:var(--slate-fill); --fill-blue:#dbe6ee;
+    /* effect tokens — inert here, lit up by the cyber theme */
+    --glow:none; --glow2:none; --swatch-glow:none; --stage-glow:none;
+    --icon-opacity:1; --icon-blend:normal;
   }
 
   /* ---------- Hand-drafted theme (vellum: graphite ink on warm tracing paper) ---------- */
@@ -476,7 +482,7 @@
   }
   .equip:active{cursor:grabbing;}
   .equip.selected{outline:2.5px solid var(--danger);outline-offset:2px;z-index:5;}
-  .equip svg{flex:1;width:100%;height:100%;display:block;}
+  .equip svg{flex:1;width:100%;height:100%;display:block;opacity:var(--icon-opacity);mix-blend-mode:var(--icon-blend);}
   .equip .lbl{
     position:absolute;left:2px;right:2px;top:2px;
     font-size:9px;font-weight:600;text-align:center;line-height:1.1;color:var(--ink);
@@ -564,11 +570,99 @@
   :root[data-theme="hand"] .equip.sketch-in .lbl,:root[data-theme="hand"] .equip.sketch-in .dimtag{animation:inkFade .5s ease both;animation-delay:inherit;}
   @keyframes inkFade{from{opacity:0;}to{opacity:1;}}
   @keyframes wallDraw{to{stroke-dashoffset:0;}}
+  /* ============ Cyber theme: HELIX HUD — neon glass on a dark canvas ============ */
+  :root[data-theme="cyber"]{
+    --paper:#0b1020; --ink:#e2e8f0; --ink-soft:#8aa0b8;
+    --blue:#7dd3fc; --blue-light:rgba(125,211,252,0.10); --line:rgba(125,211,252,0.25);
+    --slate:#8aa0b8; --slate-fill:rgba(148,163,184,0.12); --danger:#fb7185; --white:#121a2d;
+    --accent2:#a78bfa;
+    --cat-teal:#2dd4bf; --cat-amber:#fbbf24; --cat-plum:#c084fc; --cat-slate:#94a3b8; --cat-blue:#60a5fa;
+    --fill-teal:rgba(45,212,191,0.12); --fill-amber:rgba(251,191,36,0.12); --fill-plum:rgba(192,132,252,0.12); --fill-slate:rgba(148,163,184,0.12); --fill-blue:rgba(96,165,250,0.14);
+    --glow:0 0 5px rgba(125,211,252,.55), 0 0 14px rgba(125,211,252,.28);
+    --glow2:0 0 5px rgba(167,139,250,.55), 0 0 14px rgba(167,139,250,.28);
+    --swatch-glow:0 0 5px currentColor; --stage-glow:drop-shadow(0 0 22px rgba(125,211,252,0.07));
+    --icon-opacity:0.42; --icon-blend:screen;
+  }
+  :root[data-theme="cyber"] body{
+    background:
+      radial-gradient(1200px 700px at 78% -10%, rgba(125,211,252,0.07), transparent 60%),
+      radial-gradient(900px 600px at 8% 110%, rgba(167,139,250,0.07), transparent 60%),
+      var(--paper);
+  }
+  :root[data-theme="cyber"] body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(rgba(125,211,252,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,0.05) 1px,transparent 1px);
+    background-size:36px 36px;-webkit-mask-image:radial-gradient(circle at 62% 38%,#000,transparent 92%);mask-image:radial-gradient(circle at 62% 38%,#000,transparent 92%);animation:gridDrift 60s linear infinite;}
+  :root[data-theme="cyber"] header,:root[data-theme="cyber"] .app{position:relative;z-index:1;}
+  :root[data-theme="cyber"] header{border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(125,211,252,0.15);}
+  :root[data-theme="cyber"] header h1{text-transform:uppercase;letter-spacing:0.14em;color:var(--blue);text-shadow:var(--glow);font-size:19px;}
+  :root[data-theme="cyber"] header .sub{color:var(--ink-soft);letter-spacing:0.03em;}
+  :root[data-theme="cyber"] .preset-picker label{color:var(--ink);}
+  :root[data-theme="cyber"] .preset-picker select{background:var(--white);color:var(--ink);border-color:var(--line);}
+  :root[data-theme="cyber"] .sidebar{border-right:1px solid var(--line);}
+  :root[data-theme="cyber"] .sidebar h2{text-transform:uppercase;letter-spacing:0.16em;color:var(--blue);text-shadow:0 0 6px rgba(125,211,252,0.25);border-bottom:1px solid var(--line);}
+  :root[data-theme="cyber"] .stat-row{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .stat-row b{color:var(--ink);}
+  :root[data-theme="cyber"] .bar-track{background:var(--blue-light);border:1px solid var(--line);}
+  :root[data-theme="cyber"] .bar-fill{background:linear-gradient(90deg,var(--blue),var(--accent2));box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .swatch{box-shadow:var(--swatch-glow);}
+  :root[data-theme="cyber"] .item-row{border-bottom:1px dashed var(--line);}
+  :root[data-theme="cyber"] .item-row input[type=text]{color:var(--ink);}
+  :root[data-theme="cyber"] .item-row input[type=text]:hover,:root[data-theme="cyber"] .item-row input[type=text]:focus{border-color:var(--line);background:var(--white);box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .item-row input[type=number]{background:var(--white);color:var(--ink);border-color:var(--line);}
+  :root[data-theme="cyber"] .item-row input[type=number]:focus{box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .item-row .dim{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .icon-btn{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .rotate-btn:hover{color:var(--blue);}
+  :root[data-theme="cyber"] button.add-btn{background:var(--white);color:var(--blue);border:1px solid var(--line);letter-spacing:0.05em;}
+  :root[data-theme="cyber"] button.add-btn:hover{border-color:var(--blue);box-shadow:var(--glow);color:var(--blue);}
+  :root[data-theme="cyber"] .legend{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .toolbar button{background:var(--white);color:var(--ink);border:1px solid var(--line);letter-spacing:0.03em;transition:box-shadow .18s,border-color .18s,color .18s;}
+  :root[data-theme="cyber"] .toolbar button:hover{border-color:var(--blue);color:var(--blue);box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .toolbar button[onclick^="exportLayout"]{background:var(--blue) !important;color:#06121f !important;border-color:var(--blue) !important;box-shadow:var(--glow);font-weight:600;}
+  :root[data-theme="cyber"] .hint{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .note-box{background:var(--white);border:1px solid var(--line);color:var(--ink-soft);}
+  :root[data-theme="cyber"] .walkbox{background:var(--white);border:1px solid var(--line);}
+  :root[data-theme="cyber"] .walkbox .wb-total{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .walkbox .wb-total b{color:var(--blue);text-shadow:var(--glow);}
+  :root[data-theme="cyber"] .walk-row{color:var(--ink);}
+  :root[data-theme="cyber"] .walk-row input{accent-color:var(--blue);}
+  :root[data-theme="cyber"] .walk-row .wswatch{box-shadow:var(--swatch-glow);}
+  :root[data-theme="cyber"] .walk-row .wft{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .walkbox .wb-hint{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .lockToggle{color:var(--ink-soft);}
+  :root[data-theme="cyber"] .lockToggle input{accent-color:var(--blue);}
+  :root[data-theme="cyber"] .savebox{background:var(--white);border:1px solid var(--line);}
+  :root[data-theme="cyber"] .savebox .sb-head{color:var(--blue);letter-spacing:0.04em;text-transform:uppercase;}
+  :root[data-theme="cyber"] .savebox select,:root[data-theme="cyber"] .savebox input[type=text]{background:var(--white);color:var(--ink);border-color:var(--line);}
+  :root[data-theme="cyber"] .savebox button{background:var(--white);color:var(--ink);border:1px solid var(--line);}
+  :root[data-theme="cyber"] .savebox button:hover{border-color:var(--blue);color:var(--blue);box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .canvas-wrap{background:#070b16;}
+  :root[data-theme="cyber"] #stage{filter:var(--stage-glow);}
+  :root[data-theme="cyber"] #stage::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(125,211,252,0.04) 0px,rgba(125,211,252,0.04) 1px,transparent 1px,transparent 3px);}
+  :root[data-theme="cyber"] #pathLayer polyline{filter:drop-shadow(0 0 3px currentColor);}
+  :root[data-theme="cyber"] #pathLayer .pnode{filter:drop-shadow(0 0 3px currentColor);}
+  :root[data-theme="cyber"] #pathLayer .pnode.start{animation:nodePulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+  :root[data-theme="cyber"] #pathLayer .pdraw{animation:pathDraw .6s ease-out both;}
+  :root[data-theme="cyber"] .equip{box-shadow:0 0 8px rgba(125,211,252,0.12),inset 0 0 12px rgba(0,0,0,0.35);}
+  :root[data-theme="cyber"] .equip.selected{outline-color:var(--accent2);box-shadow:var(--glow2),inset 0 0 12px rgba(0,0,0,0.35);animation:selPulse 1.6s ease-in-out infinite;}
+  :root[data-theme="cyber"] .equip .lbl{color:#eaf3fb;text-shadow:0 0 3px #000,0 1px 2px #000,0 0 2px #000;}
+  :root[data-theme="cyber"] .equip .dimtag{color:var(--blue);text-shadow:0 0 3px #000,0 0 2px #000;}
+  :root[data-theme="cyber"] .resize-handle{background:var(--blue);border-color:var(--paper);box-shadow:var(--glow);}
+  :root[data-theme="cyber"] .titleblock{background:var(--white);border:1px solid var(--line);color:var(--ink);}
+  :root[data-theme="cyber"] .titleblock .tb-head{background:linear-gradient(90deg,rgba(125,211,252,0.18),rgba(167,139,250,0.18));color:#a5e8ff;letter-spacing:0.08em;text-transform:uppercase;}
+  :root[data-theme="cyber"] .titleblock td{border-top:1px solid var(--line);}
+  :root[data-theme="cyber"] .titleblock td.label{color:var(--ink-soft);}
+  @keyframes gridDrift{from{background-position:0 0,0 0;}to{background-position:36px 36px,36px 36px;}}
+  @keyframes selPulse{0%,100%{box-shadow:var(--glow2),inset 0 0 12px rgba(0,0,0,.35);}50%{box-shadow:0 0 10px rgba(167,139,250,.85),0 0 22px rgba(167,139,250,.45),inset 0 0 12px rgba(0,0,0,.35);}}
+  @keyframes nodePulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  @keyframes pathDraw{from{stroke-dashoffset:var(--len);}to{stroke-dashoffset:0;}}
+
   @media (prefers-reduced-motion:reduce){
-    *{animation-duration:.001ms !important;transition-duration:.001ms !important;}
+    *,body::before{animation-duration:.001ms !important;transition-duration:.001ms !important;animation:none !important;}
   }
 
   @media print{
+    body::before,#stage::after{display:none !important;}
     .sidebar,.toolbar,.hint{display:none !important;}
     .canvas-wrap{padding:0;}
     body{background:#fff;}
@@ -1039,6 +1133,16 @@ const BG_THEMES = {
     <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3" result="n"/>
     <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
   </filter>`
+  },
+  // HELIX HUD — neon lines on a dark canvas (glow/scanline chrome lives in scoped CSS)
+  cyber: {
+    gridStroke:'rgba(125,211,252,0.09)', gridOp:'1', hatch:'rgba(167,139,250,0.45)', hatchW:'2',
+    ink:'#7dd3fc', inkW:'3', inkSoft:'#5f7286', rust:'#a78bfa', blue:'#8aa0b8',
+    font:'IBM Plex Mono', paper:'#070b16', sfSize:15, dimSize:9,
+    colFill:'#0e1526', colStroke:'#5f7286', storFill:'#0e1526',
+    shelfFill:'rgba(148,163,184,0.14)', shelfStroke:'#5f7286', shelfText:'#7dd3fc',
+    rmFill:'#0e1526', shaftText:'#8aa0b8',
+    f:'', fs:'', drawWall:false, roughDefs:''
   }
 };
 
@@ -1287,8 +1391,8 @@ function iconSVG(kind){
   }
 }
 
-const COLORS = {teal:'#3e7c7c', amber:'#b9822f', plum:'#6b4c7a', slate:'#5b6b7a', blue:'#2c5f8a'};
-const FILLS  = {teal:'var(--teal-fill)', amber:'var(--amber-fill)', plum:'var(--plum-fill)', slate:'var(--slate-fill)', blue:'#dbe6ee'};
+const COLORS = {teal:'var(--cat-teal)', amber:'var(--cat-amber)', plum:'var(--cat-plum)', slate:'var(--cat-slate)', blue:'var(--cat-blue)'};
+const FILLS  = {teal:'var(--fill-teal)', amber:'var(--fill-amber)', plum:'var(--fill-plum)', slate:'var(--fill-slate)', blue:'var(--fill-blue)'};
 
 const ITEMS_V2 = [
   {
@@ -1562,281 +1666,8 @@ const ITEMS_V2 = [
     "icon": "freezer"
   }
 ];
-const ITEMS_V3 = [
-  {
-    "id": "sartorius500",
-    "name": "Sartorius BIOSTAT STR 500L + control tower",
-    "w": 7,
-    "h": 7.5,
-    "x": 16,
-    "y": 14.5,
-    "color": "teal",
-    "icon": "bioreactor-large"
-  },
-  {
-    "id": "atf6",
-    "name": "ATF 6 (paired w/ 500L)",
-    "w": 2.5,
-    "h": 2.5,
-    "x": 23.5,
-    "y": 14.5,
-    "color": "teal",
-    "icon": "atf"
-  },
-  {
-    "id": "200L-a",
-    "name": "200L bioreactor A",
-    "w": 5,
-    "h": 5,
-    "x": 16.5,
-    "y": 6.5,
-    "color": "teal",
-    "icon": "bioreactor-large"
-  },
-  {
-    "id": "50L-a",
-    "name": "50L bioreactor A",
-    "w": 3.5,
-    "h": 3,
-    "x": 16.5,
-    "y": 1.5,
-    "color": "teal",
-    "icon": "bioreactor-large"
-  },
-  {
-    "id": "gasmanifold",
-    "name": "CO2/Air/N2/O2 gas manifold",
-    "w": 8,
-    "h": 1,
-    "x": 16,
-    "y": 0,
-    "color": "slate",
-    "icon": "gas"
-  },
-  {
-    "id": "bsc",
-    "name": "Biosafety cabinet (Class II)",
-    "w": 6,
-    "h": 3,
-    "x": 4,
-    "y": 25,
-    "color": "slate",
-    "icon": "bsc"
-  },
-  {
-    "id": "freezer",
-    "name": "-20°C/-80°C sample freezer",
-    "w": 3,
-    "h": 3,
-    "x": 0.5,
-    "y": 24.5,
-    "color": "slate",
-    "icon": "freezer"
-  },
-  {
-    "id": "incubator",
-    "name": "CO2 incubator / shaker",
-    "w": 3,
-    "h": 2.5,
-    "x": 0.5,
-    "y": 28.5,
-    "color": "slate",
-    "icon": "incubator"
-  },
-  {
-    "id": "islandA",
-    "name": "Existing island 1 — cell &amp; metabolite analytics",
-    "w": 6,
-    "h": 18,
-    "x": 7,
-    "y": 5.5,
-    "color": "slate",
-    "icon": "island"
-  },
-  {
-    "id": "vicell",
-    "name": "Vi-CELL BLU cell viability analyzer",
-    "w": 2.2,
-    "h": 2.2,
-    "x": 11.5,
-    "y": 13.5,
-    "color": "teal",
-    "icon": "analyzer"
-  },
-  {
-    "id": "nova",
-    "name": "Nova BioProfile FLEX2 (metabolite/gas)",
-    "w": 2,
-    "h": 2,
-    "x": 11.5,
-    "y": 18,
-    "color": "teal",
-    "icon": "analyzer"
-  },
-  {
-    "id": "benchcentrifuge",
-    "name": "Benchtop centrifuge",
-    "w": 2.2,
-    "h": 2.2,
-    "x": 6.5,
-    "y": 8.5,
-    "color": "amber",
-    "icon": "centrifuge"
-  },
-  {
-    "id": "datastation",
-    "name": "Data / laptop station",
-    "w": 2.2,
-    "h": 1.6,
-    "x": 13.5,
-    "y": 11.5,
-    "color": "blue",
-    "icon": "data"
-  },
-  {
-    "id": "harvest10",
-    "name": "Millipore harvest skid — 10×1.1 m² capsules",
-    "w": 7,
-    "h": 4,
-    "x": 31,
-    "y": 27.5,
-    "color": "plum",
-    "icon": "harvest-skid"
-  },
-  {
-    "id": "harvest5",
-    "name": "Millipore harvest skid — 5×1.1 m² capsules",
-    "w": 5,
-    "h": 3.5,
-    "x": 24,
-    "y": 27.5,
-    "color": "plum",
-    "icon": "harvest-skid"
-  },
-  {
-    "id": "centrifuge",
-    "name": "Alfa Laval continuous centrifuge (single-use)",
-    "w": 5,
-    "h": 4.5,
-    "x": 26,
-    "y": 22.5,
-    "color": "amber",
-    "icon": "centrifuge"
-  },
-  {
-    "id": "safety",
-    "name": "Handwash sink + eyewash station",
-    "w": 3,
-    "h": 2,
-    "x": 10,
-    "y": 23.5,
-    "color": "slate",
-    "icon": "sink"
-  },
-  {
-    "id": "custom1",
-    "name": "Scale 1000 kg",
-    "w": 4,
-    "h": 4,
-    "x": 40,
-    "y": 26,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom2",
-    "name": "Scale 500 Kg",
-    "w": 3,
-    "h": 3,
-    "x": 35,
-    "y": 7,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom3",
-    "name": "Scale 150 kg",
-    "w": 2.5,
-    "h": 2.5,
-    "x": 35,
-    "y": 1.5,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom4",
-    "name": "Bench ",
-    "w": 3,
-    "h": 12,
-    "x": 40,
-    "y": 5,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom5",
-    "name": "Rocker 1 ",
-    "w": 4,
-    "h": 2,
-    "x": 25,
-    "y": 1.5,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom6",
-    "name": "Rocker 2",
-    "w": 4,
-    "h": 2,
-    "x": 25,
-    "y": 4,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom7",
-    "name": "Rocker 3",
-    "w": 4,
-    "h": 2,
-    "x": 30,
-    "y": 1.5,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom8",
-    "name": "CO2/Air/N2/O2 gas manifold",
-    "w": 1,
-    "h": 8,
-    "x": 43,
-    "y": 18,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "custom9",
-    "name": "Consumables storage",
-    "w": 3,
-    "h": 12,
-    "x": 0.5,
-    "y": 4,
-    "color": "blue",
-    "icon": "default"
-  },
-  {
-    "id": "fridge",
-    "name": "Media refrigerator",
-    "w": 2.5,
-    "h": 3,
-    "x": 4,
-    "y": 28.5,
-    "color": "slate",
-    "icon": "freezer"
-  }
-];
 const LAYOUTS = {
-  v2: {label:"v2 — as provided (traced site plan)", title:"Upstream Process Development Suite — Floor Plan (v2)", heading:"Upstream Process Development Suite — traced to provided site plan", note:"<b>Updated from your actual site plan:</b> the green \"ANALYTICAL\" zone is removed — that floor is now open and folded into the working layout below. I kept your <b>3 existing islands</b> in roughly their real positions (evenly spaced, aligned with the two lower doors so the aisles between islands double as the walk paths to those doors) instead of adding new casework, since they're already built with utility drops.\n      <br><br>\n      <b>Island assignments:</b> Island 1 — Vi-CELL BLU + Nova BioProfile FLEX2. Island 2 (center) — benchtop centrifuge, balance, data station. Island 3 — osmometer + sample-prep cart. Each island's existing sink/utility drop is marked; verify what's actually plumbed to each before assigning equipment that needs power vs. drain vs. vacuum.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V2},
-  v3: {label:"v3 — walking-distance optimized", title:"Upstream Process Development Suite — Floor Plan (v3, walking-distance optimized)", heading:"Upstream Process Development Suite — walking-distance optimized (v3)", note:"<b>v3 — walking-distance optimized.</b> Repositioned to cut total daily walking ~57% (≈428 → ≈182 ft/day, per the workflow data in <code>/workflows</code>). Two changes drive most of it: (1) the <b>bioreactors moved from the far-right wall into a central bay right beside the fixed analytics island + data station</b>, since daily sampling (bioreactor → island → data station, 2×/day per reactor) is ~85% of all foot traffic; (2) the <b>prep cluster — incubator, freezer/media, BSC — is grouped tight in the lower-left</b> so the passage/inoculation loop no longer bounces the width of the room. See <code>/workflows/walking_distance_analysis.md</code> for the full breakdown.\n      <br><br>\n      <b>Still to confirm:</b> the analytics <b>island is treated as fixed casework</b> (utility drops) — everything was arranged around it. A dedicated <b>media refrigerator</b> is referenced by three workflows but doesn't exist as a station yet (freezer used as a proxy in the math). Which specific bioreactor each \"daily sampling\" / \"inoculate\" trip targets is assumed — adjust in <code>/workflows</code> if wrong.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V3}
+  v2: {label:"v2 — as provided (traced site plan)", title:"Upstream Process Development Suite — Floor Plan (v2)", heading:"Upstream Process Development Suite — traced to provided site plan", note:"<b>Updated from your actual site plan:</b> the green \"ANALYTICAL\" zone is removed — that floor is now open and folded into the working layout below. I kept your <b>3 existing islands</b> in roughly their real positions (evenly spaced, aligned with the two lower doors so the aisles between islands double as the walk paths to those doors) instead of adding new casework, since they're already built with utility drops.\n      <br><br>\n      <b>Island assignments:</b> Island 1 — Vi-CELL BLU + Nova BioProfile FLEX2. Island 2 (center) — benchtop centrifuge, balance, data station. Island 3 — osmometer + sample-prep cart. Each island's existing sink/utility drop is marked; verify what's actually plumbed to each before assigning equipment that needs power vs. drain vs. vacuum.\n      <br><br>\n      <b>RM 34166</b> (179 SF, adjacent) is redrawn with your real shelf/tank position codes (A1, A2, A3, A5×2, A6, A7, TA-10, TA-18) and the existing shaft/feature above it — kept for reference, not counted in the 1,409 SF and not editable here.\n      <br><br>\n      Wall shape, column notches, and door positions are still traced by eye (your photo crops off the room's right side) — confirm against the CAD/DWG, especially the island spacing and the true right-hand wall, before finalizing.", items:ITEMS_V2}
 };
 let activePreset = 'v2';
 let items = JSON.parse(JSON.stringify(ITEMS_V2));
@@ -2138,7 +1969,9 @@ function renderPaths(){
   if(!pathLayer) return;
   pathLayer.innerHTML='';
   const handTheme = activeTheme==='hand';
-  const startFill = handTheme ? '#f7f1e1' : '#fff';   // start-dot core matches the paper
+  const cyberTheme = activeTheme==='cyber';
+  const animate = !(dragState||resizeState);   // don't replay draw-on while tracking a gesture
+  const startFill = handTheme ? '#f7f1e1' : (cyberTheme ? '#070b16' : '#fff');   // start-dot core matches the canvas
   const active=ACTIVITIES.filter(a=>shownActs.has(a.id));
   active.forEach((act,idx)=>{
     const off=(idx-(active.length-1)/2)*2;   // small nudge so coincident legs stay distinct
@@ -2153,8 +1986,12 @@ function renderPaths(){
       poly.setAttribute('stroke-opacity', handTheme ? '0.9' : '0.85');
       poly.setAttribute('stroke-linejoin','round');
       poly.setAttribute('stroke-linecap','round');
+      poly.style.color=act.color;   // drives the cyber currentColor glow
       if(handTheme) poly.setAttribute('filter','url(#roughSoft)');   // hand-inked wobble
       pathLayer.appendChild(poly);
+      if(cyberTheme && animate){   // neon "draw-on" of the route
+        try{ const len=poly.getTotalLength(); poly.style.setProperty('--len',len); poly.style.strokeDasharray=len; poly.classList.add('pdraw'); }catch(e){}
+      }
       // dots at each station stop; ring the first to mark the start
       seq.forEach((sid,i)=>{
         const it=items.find(x=>x.id===sid); if(!it) return;
@@ -2164,6 +2001,8 @@ function renderPaths(){
         c.setAttribute('r', i===0?4.5:3);
         c.setAttribute('fill', i===0?startFill:act.color);
         c.setAttribute('stroke',act.color); c.setAttribute('stroke-width', i===0?2.5:1);
+        c.style.color=act.color;
+        c.setAttribute('class', i===0?'pnode start':'pnode');
         pathLayer.appendChild(c);
       });
     });
@@ -2223,7 +2062,7 @@ function loadPreset(id){
 renderRoom();
 
 /* ---------- Visual themes (blueprint / hand-drafted) ---------- */
-const THEME_LABELS = { blueprint:'Blueprint', hand:'Hand-drafted' };
+const THEME_LABELS = { blueprint:'Blueprint', hand:'Hand-drafted', cyber:'Cyber — HELIX HUD' };
 function applyTheme(id){
   if(!BG_THEMES[id]) id='blueprint';
   activeTheme = id;

@@ -6,12 +6,11 @@ and the workflow activities/steps, normalizes every activity to trips-per-day,
 and reports total walked feet per day plus the highest-traffic legs.
 
 Usage:
-    python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v2
-    python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html v3
+    python3 compute_walking_distance.py ../layouts/upstream_lab_layout.html
 
-The layout file holds both arrangements as presets (const ITEMS_V2 / ITEMS_V3);
-the second arg picks one (default v2). An exported single-layout file (which
-carries a plain `let items = [...]`) also works with no preset arg.
+The layout file holds the arrangement as a preset (const ITEMS_V2); an optional
+second arg selects a preset by name (default v2). An exported single-layout file
+(which carries a plain `let items = [...]`) also works with no preset arg.
 
 Distances are straight-line (centroid-to-centroid), a first-pass approximation
 appropriate for a fairly open room. Add obstacle-aware routing later if it
