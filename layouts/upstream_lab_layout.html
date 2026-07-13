@@ -391,6 +391,12 @@
     --glow:none; --glow2:none; --swatch-glow:none; --stage-glow:none;
     --icon-opacity:1; --icon-blend:normal;
     --label-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;
+    /* structural tokens — shared by every theme (themes override palette, not these),
+       so chrome polish (radius, depth, motion, focus) stays consistent across looks */
+    --radius:7px; --radius-sm:5px; --pill:999px;
+    --shadow-1:0 1px 2px rgba(16,32,48,.05), 0 1px 3px rgba(16,32,48,.04);
+    --shadow-2:0 6px 20px rgba(16,32,48,.10);
+    --speed:.16s;
   }
 
   /* ---------- Hand-drafted theme (vellum: graphite ink on warm tracing paper) ---------- */
@@ -419,14 +425,30 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:'IBM Plex Sans',sans-serif;background:var(--paper);color:var(--ink);}
-  header{padding:20px 28px 12px;border-bottom:2px solid var(--ink);}
-  header h1{font-size:21px;margin:0 0 4px;}
+  /* Shared control polish — applies in every theme. Smooth state changes and a
+     single, theme-aware keyboard-focus ring instead of the browser default. */
+  button,input,select{font-family:inherit;}
+  button,input[type=text],input[type=number],select{
+    transition:background var(--speed) ease,color var(--speed) ease,border-color var(--speed) ease,box-shadow var(--speed) ease,transform var(--speed) ease;
+  }
+  button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{
+    outline:2px solid var(--blue);outline-offset:2px;border-radius:var(--radius-sm);
+  }
+  header{padding:18px 28px;border-bottom:2px solid var(--ink);}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:20px 28px;flex-wrap:wrap;}
+  .brand{min-width:0;}
+  header h1{font-size:22px;line-height:1.15;margin:0 0 5px;letter-spacing:-0.01em;}
   header .sub{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--blue);}
-  .preset-picker{margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
-  .preset-picker label{color:var(--ink);font-weight:600;margin-right:6px;}
-  .preset-picker select{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 6px;border:1px solid var(--ink);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;}
-  .preset-picker #scaleRange{vertical-align:middle;width:120px;cursor:pointer;}
-  .preset-picker .fit-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;margin-left:6px;border:1px solid var(--ink);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.4;padding:2px 10px;
+    border:1px solid var(--line);border-radius:var(--pill);color:var(--ink-soft);background:var(--white);white-space:nowrap;}
+  /* Control cluster (scale + theme) — grouped so it reads as one deliberate toolbar */
+  .preset-picker{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .ctrl-group{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow-1);}
+  .preset-picker label{color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;font-size:10px;}
+  .preset-picker select{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:4px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);cursor:pointer;}
+  .preset-picker #scaleRange{vertical-align:middle;width:120px;cursor:pointer;accent-color:var(--blue);}
+  .preset-picker .fit-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 10px;border:1px solid var(--ink);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);cursor:pointer;}
   .preset-picker .fit-btn:hover{background:var(--ink);color:var(--white);}
   .app{display:flex;align-items:flex-start;}
   .sidebar{width:330px;flex-shrink:0;padding:16px 18px 40px;border-right:2px solid var(--ink);min-height:calc(100vh - 84px);background:var(--white);overflow-y:auto;}
@@ -438,24 +460,27 @@
   .item-row{display:flex;align-items:center;gap:5px;padding:5px 3px;border-bottom:1px dashed var(--line);font-size:11.5px;}
   .swatch{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
   .item-row input[type=text]{flex:1;min-width:0;border:1px solid transparent;background:transparent;font-size:11.5px;padding:2px 3px;border-radius:3px;font-family:'IBM Plex Sans',sans-serif;}
-  .item-row input[type=text]:hover,.item-row input[type=text]:focus{border-color:var(--line);background:#fff;}
+  .item-row input[type=text]:hover,.item-row input[type=text]:focus{border-color:var(--line);background:var(--white);}
   .item-row input[type=number]{width:34px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;border:1px solid var(--line);border-radius:3px;padding:2px;text-align:center;}
   .item-row .dim{color:var(--slate);font-family:'IBM Plex Mono',monospace;font-size:10.5px;}
   .icon-btn{border:none;background:none;cursor:pointer;font-size:12px;color:var(--slate);padding:2px 3px;}
   .icon-btn:hover{color:var(--danger);}
   .rotate-btn:hover{color:var(--blue);}
-  button.add-btn{width:100%;margin-top:8px;padding:8px;background:var(--ink);color:var(--white);border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;}
+  button.add-btn{width:100%;margin-top:8px;padding:9px;background:var(--ink);color:var(--white);border:none;border-radius:var(--radius-sm);font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:0.02em;cursor:pointer;}
   button.add-btn:hover{background:var(--blue);}
   .legend{font-size:11px;line-height:1.85;}
   .legend .swatch{display:inline-block;margin-right:6px;vertical-align:middle;}
   .toolbar{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;}
-  .toolbar button{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:6px 9px;border:1px solid var(--ink);background:#fff;border-radius:4px;cursor:pointer;}
-  .toolbar button:hover{background:var(--ink);color:#fff;}
+  .toolbar button{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:500;padding:7px 11px;border:1px solid var(--ink);background:var(--white);border-radius:var(--radius-sm);cursor:pointer;box-shadow:var(--shadow-1);}
+  .toolbar button:hover{background:var(--ink);color:var(--white);}
+  /* Primary action — a single filled accent button so the key action reads clearly in every theme */
+  .toolbar button.btn-primary{background:var(--blue);color:var(--white);border-color:var(--blue);font-weight:600;}
+  .toolbar button.btn-primary:hover{background:var(--blue);color:var(--white);filter:brightness(1.09);}
   .hint{font-size:10.8px;color:var(--slate);margin-top:8px;line-height:1.5;}
-  .note-box{font-size:10.8px;background:var(--slate-fill);border:1px solid var(--line);border-radius:5px;padding:8px;line-height:1.5;margin-top:6px;}
+  .note-box{font-size:10.8px;background:var(--slate-fill);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px;line-height:1.5;margin-top:6px;}
 
   /* Walking-distance box */
-  .walkbox{border:1px solid var(--line);border-radius:5px;padding:8px 9px;margin:8px 0 4px;background:#fff;}
+  .walkbox{border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;margin:8px 0 4px;background:var(--white);box-shadow:var(--shadow-1);}
   .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:7px;}
   .walkbox .wb-total b{font-size:15px;font-family:'IBM Plex Mono',monospace;}
   .walk-row{display:flex;align-items:center;gap:4px;font-size:10.6px;padding:3px 0;border-bottom:1px dashed var(--line);}
@@ -493,12 +518,12 @@
   #warnLayer{position:absolute;top:0;pointer-events:none;z-index:3;overflow:visible;}
   .lockToggle{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink);cursor:pointer;margin-top:2px;}
   .lockToggle input{cursor:pointer;margin:0;}
-  .savebox{border:1px solid var(--line);border-radius:5px;padding:8px 9px;margin:8px 0 4px;background:#fff;}
+  .savebox{border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;margin:8px 0 4px;background:var(--white);box-shadow:var(--shadow-1);}
   .savebox .sb-head{font-size:11px;font-weight:600;margin-bottom:6px;}
   .savebox .sb-row{display:flex;gap:5px;margin-bottom:5px;flex-wrap:wrap;}
-  .savebox select,.savebox input[type=text]{flex:1;min-width:90px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:4px;border:1px solid var(--line);border-radius:4px;background:#fff;}
-  .savebox button{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 7px;border:1px solid var(--ink);background:#fff;border-radius:4px;cursor:pointer;}
-  .savebox button:hover{background:var(--ink);color:#fff;}
+  .savebox select,.savebox input[type=text]{flex:1;min-width:90px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:5px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--white);}
+  .savebox button{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;border:1px solid var(--ink);background:var(--white);border-radius:var(--radius-sm);cursor:pointer;}
+  .savebox button:hover{background:var(--ink);color:var(--white);}
   .sizes-locked .resize-handle{display:none;}
   .equip{
     position:absolute;border:1.4px solid rgba(0,0,0,0.4);border-radius:var(--sketch-r);
@@ -704,9 +729,22 @@
 </head>
 <body id="artifacts-component-root-html">
 <header>
-  <h1>Upstream Process Development Suite — traced to provided site plan</h1>
-  <div class="sub">1,409 SF working area + adjacent RM 34166 (analytical storage) &nbsp;|&nbsp; drag/resize equipment &nbsp;|&nbsp; storage room shown for reference, not editable</div>
-  <div class="preset-picker"><label for="scaleRange">Scale</label><input type="range" id="scaleRange" min="8" max="30" step="1"><button type="button" id="fitBtn" class="fit-btn">Fit width</button>&nbsp;&nbsp;<label for="themeSelect">Theme</label><select id="themeSelect"></select></div>
+  <div class="topbar">
+    <div class="brand">
+      <h1>Upstream Process Development Suite</h1>
+      <div class="sub">Interactive equipment layout &amp; workflow travel analysis</div>
+      <div class="meta">
+        <span class="chip">1,409 SF working area</span>
+        <span class="chip">+ RM 34166 · analytical storage</span>
+        <span class="chip">traced to site plan</span>
+        <span class="chip">storage shown for reference — not editable</span>
+      </div>
+    </div>
+    <div class="preset-picker">
+      <span class="ctrl-group"><label for="scaleRange">Scale</label><input type="range" id="scaleRange" min="8" max="30" step="1"><button type="button" id="fitBtn" class="fit-btn">Fit width</button></span>
+      <span class="ctrl-group"><label for="themeSelect">Theme</label><select id="themeSelect"></select></span>
+    </div>
+  </div>
 </header>
 
 <div class="app">
@@ -739,7 +777,7 @@
     <div class="toolbar">
       <button onclick="location.reload()">Reset layout</button>
       <button onclick="window.print()">Print / PDF</button>
-      <button onclick="exportLayout()" style="background:var(--blue);color:#fff;border-color:var(--blue);">⬇ Download my edited layout</button>
+      <button onclick="exportLayout()" class="btn-primary">⬇ Download my edited layout</button>
       <label class="lockToggle"><input type="checkbox" id="lockSizes" checked> Lock sizes (drag won't resize)</label>
     </div>
 
