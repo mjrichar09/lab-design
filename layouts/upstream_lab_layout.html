@@ -1829,7 +1829,13 @@ function updateStats(){
 
 let customCounter=1;
 function addCustomItem(){
-  const id='custom'+(customCounter++);
+  // Derive the next free id from the items already present so we never collide
+  // with the seeded custom1..N rows (a duplicate id makes edits/deletes hit the
+  // wrong row). Advance the counter past any existing custom* id.
+  const used=new Set(items.map(i=>i.id));
+  items.forEach(i=>{ const m=/^custom(\d+)$/.exec(i.id); if(m) customCounter=Math.max(customCounter,+m[1]+1); });
+  let id;
+  do { id='custom'+(customCounter++); } while(used.has(id));
   items.push({id,name:'New item',w:3,h:3,x:0,y:0,color:'blue',icon:'default'});
   selectedId=id; renderRoom();
 }
