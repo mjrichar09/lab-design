@@ -129,6 +129,17 @@ first (clearance & egress checks) is **done** — see `Status_update.md`.
 - [x] **Clearance & egress checks** — live overlay flagging too-narrow aisles
       (settable min), equipment overlaps (ignoring intentional stacking), and
       anything blocking a door / exit. Reuses the box geometry + `DOORS`.
+- [x] **AI-generated equipment icons (Groq)** — ✨ per item in the sidebar asks
+      a Groq LLM (via the `api/generate-icon.js` Vercel proxy; `GROQ_API_KEY`
+      env var) for a top-down blueprint-style SVG icon; optional detail prompt,
+      redraw, and revert-to-built-in. Icons stroke with the category color and
+      re-theme automatically; sanitized on generation and on every load path.
+      Decision: Groq has no image generation, so icons are LLM-written SVG
+      (better theme fit than raster anyway). Also fixed pre-existing standalone
+      bugs: gated the claude.ai artifact shim (fetch/`URL.createObjectURL` were
+      hijacked, breaking the export download outside claude.ai) and `<`-escaped
+      the export's inline JSON. *Follow-up: the endpoint is public — consider a
+      simple per-IP throttle.*
 - [ ] **Equipment library** — drag common lab gear from a palette pre-loaded
       with real footprints/categories (seed from `workflows/equipment_footprints.md`)
       instead of add-then-resize.

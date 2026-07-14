@@ -19,6 +19,25 @@ construction drawings.
 - `workflows/` — workflow data (activities, ordered station sequences, run
   cadence) plus `compute_walking_distance.py`, which turns that data + a layout
   into a weighted travel chart. See `workflows/README.md`.
+- `api/generate-icon.js` — Vercel serverless proxy for the **AI icons** feature
+  (see below). Not needed for opening the layout locally.
+
+### AI-generated icons (hosted version only)
+
+On the deployed (Vercel) site, the ✨ button next to each item in the sidebar
+asks a Groq LLM to draw a blueprint-style top-down SVG icon for that piece of
+equipment. Add optional detail in the inline prompt box (e.g. "4-bucket
+front-loading"), press **Draw** (or **Redraw** to redesign an existing AI
+icon), and ⟲ reverts to the built-in icon. Generated icons stroke with the
+item's category color, restyle with the theme, and survive Saved layouts and
+the HTML export. Opening the file locally still works fully — only icon
+generation needs the hosted `/api` endpoint.
+
+**Vercel setup:** in the project's settings, add the environment variable
+`GROQ_API_KEY` (from console.groq.com). Optional: `GROQ_MODEL` overrides the
+default model (`openai/gpt-oss-120b`) — a config change if Groq deprecates the
+id. Note the endpoint is unauthenticated on the public URL (prompt/response
+lengths are capped server-side).
 
 ### Space summary (as of v2)
 
