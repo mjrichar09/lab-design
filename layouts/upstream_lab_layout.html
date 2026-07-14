@@ -3,6 +3,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js" integrity="sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
       (function() {
+        // Standalone (Vercel / file://): there is no parent frame to answer the
+        // bridge, so skip the whole claude.ai artifact shim — native fetch,
+        // URL.createObjectURL and console must keep working (export download,
+        // /api/generate-icon). Embedded in claude.ai the bridge installs as before.
+        if (window.parent === window) return;
         // Capture host references before any artifact code runs: Window.parent
         // is [Replaceable] (a top-level `var parent` in artifact code would
         // replace the accessor with a data property), and a top-level
@@ -473,7 +478,15 @@
   .item-row .dim{color:var(--slate);font-family:'IBM Plex Mono',monospace;font-size:var(--fs-xs);}
   .icon-btn{border:none;background:none;cursor:pointer;font-size:var(--fs-md);color:var(--slate);padding:2px 3px;}
   .icon-btn:hover{color:var(--danger);}
-  .rotate-btn:hover{color:var(--blue);}
+  .rotate-btn:hover,.gen-btn:hover,.revert-btn:hover{color:var(--blue);}
+  .gen-bar{display:flex;align-items:center;gap:5px;padding:5px 3px 7px;border-bottom:1px dashed var(--line);}
+  .gen-bar input{flex:1;min-width:0;border:1px solid var(--line);background:var(--white);font-size:var(--fs-xs);padding:3px 4px;border-radius:3px;}
+  .gen-bar button{font-family:'IBM Plex Mono',monospace;font-size:var(--fs-xs);padding:3px 7px;border:1px solid var(--ink);background:var(--white);border-radius:3px;cursor:pointer;flex-shrink:0;}
+  .gen-bar button:hover{background:var(--ink);color:var(--white);}
+  .gen-bar button:disabled{opacity:.5;pointer-events:none;}
+  .gen-msg{font-size:var(--fs-xs);color:var(--slate);white-space:nowrap;}
+  .gen-msg:empty{display:none;}
+  .gen-msg.err{color:var(--danger);white-space:normal;}
   button.add-btn{width:100%;margin-top:8px;padding:9px;background:var(--ink);color:var(--white);border:none;border-radius:var(--radius-sm);font-family:'IBM Plex Mono',monospace;font-size:var(--fs-sm);font-weight:600;letter-spacing:0.02em;cursor:pointer;}
   button.add-btn:hover{background:var(--blue);}
   .legend{font-size:var(--fs-sm);line-height:1.85;}
@@ -1776,6 +1789,56 @@ function labelFit(name, w, h){
   return 'out';                            // too small either way — write beside it
 }
 
+/* ---------- AI-generated icons (Groq via /api/generate-icon) ---------- */
+// An item may carry its own SVG in it.svg (AI-generated, sanitized); it wins
+// over the built-in icon kind and survives save/export like any other field.
+function itemIcon(it){ return (it.svg && String(it.svg).trim()) ? it.svg : iconSVG(it.icon); }
+
+// Defense-in-depth: the server already validates, but anything landing in
+// it.svg (including from imported/saved layouts) gets re-sanitized here.
+function sanitizeSvg(input){
+  if(!input || String(input).length>12000) return null;
+  const doc=new DOMParser().parseFromString(String(input),'image/svg+xml');
+  const svg=doc.querySelector('svg');
+  if(!svg || doc.querySelector('parsererror')) return null;
+  const ALLOWED=new Set(['svg','g','rect','circle','ellipse','line','polyline','polygon','path','defs','title']);
+  const scrubAttrs=el=>{[...el.attributes].forEach(a=>{
+    const n=a.name.toLowerCase(), v=a.value.toLowerCase();
+    if(n.startsWith('on')||n==='href'||n==='xlink:href'||v.includes('url(')||v.includes('javascript:')) el.removeAttribute(a.name);
+  });};
+  const walk=node=>{[...node.childNodes].forEach(ch=>{
+    if(ch.nodeType===8){ch.remove();return;}                       // comments
+    if(ch.nodeType!==1) return;
+    if(!ALLOWED.has(ch.tagName.toLowerCase())){ch.remove();return;}
+    scrubAttrs(ch); walk(ch);
+  });};
+  scrubAttrs(svg); walk(svg);
+  svg.setAttribute('viewBox','0 0 100 100');
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.removeAttribute('width'); svg.removeAttribute('height');
+  return svg.outerHTML;
+}
+
+let iconPromptFor=null, iconDetailDraft='';   // which item's generate bar is open + its draft text
+async function runIconGen(it, bar){
+  const input=bar.querySelector('.gen-detail'), go=bar.querySelector('.gen-go'), msg=bar.querySelector('.gen-msg');
+  go.disabled=true; msg.textContent='Generating…'; msg.classList.remove('err');
+  try{
+    if(location.protocol==='file:') throw new Error('AI icons need the hosted (Vercel) version');
+    const res=await fetch('/api/generate-icon',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:it.name,detail:input.value.trim()})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
+    const clean=sanitizeSvg(data.svg);
+    if(!clean) throw new Error('Unusable SVG — try again');
+    it.svg=clean; iconPromptFor=null; iconDetailDraft='';
+    renderRoom();
+  }catch(err){
+    msg.textContent=(err&&err.message)||'Request failed';
+    msg.classList.add('err'); go.disabled=false;
+  }
+}
+
 function renderRoom(){
   equipLayer.innerHTML='';
   equipLayer.classList.toggle('sizes-locked', sizeLocked);
@@ -1787,9 +1850,10 @@ function renderRoom(){
     el.style.width=ft(it.w)+'px'; el.style.height=ft(it.h)+'px';
     el.style.background=FILLS[it.color]||'#eee';
     el.style.borderColor=COLORS[it.color]||'#333';
+    el.style.color=COLORS[it.color]||'#333';   // AI icons stroke with currentColor → category color, theme-aware
     const rot=it.rot||0; el.style.setProperty('--rot', rot+'deg');   // composed with lift/pop in the hand theme
     el.dataset.id=it.id;
-    el.innerHTML=`${iconSVG(it.icon)}<div class="lbl"><span>${it.name}</span></div><div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
+    el.innerHTML=`${itemIcon(it)}<div class="lbl"><span>${it.name}</span></div><div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
     const lblEl=el.querySelector('.lbl');
     const mode=labelFit(it.name, it.w*PPF-6, it.h*PPF-6);
     if(mode==='rot') lblEl.classList.add('lbl-rot');
@@ -1854,15 +1918,33 @@ function renderList(){
       <span class="dim">×</span>
       <input type="number" step="0.5" value="${it.h}" class="hInput" data-id="${it.id}">
       <button class="icon-btn rotate-btn" data-id="${it.id}">↻</button>
-      <button class="icon-btn" data-id="${it.id}">✕</button>`;
+      <button class="icon-btn gen-btn" title="Generate AI icon (Groq)" data-id="${it.id}">✨</button>
+      ${it.svg?`<button class="icon-btn revert-btn" title="Revert to built-in icon" data-id="${it.id}">⟲</button>`:''}
+      <button class="icon-btn del-btn" data-id="${it.id}">✕</button>`;
     row.addEventListener('click',(e)=>{ if(e.target.tagName!=='INPUT'){selectedId=it.id;renderRoom();} });
     list.appendChild(row);
+    if(it.id===iconPromptFor){
+      const bar=document.createElement('div'); bar.className='gen-bar';
+      bar.innerHTML=`<input type="text" class="gen-detail" maxlength="400" placeholder="optional detail, e.g. 4-bucket front-loading…">
+        <button type="button" class="gen-go">${it.svg?'Redraw':'Draw'}</button>
+        <button type="button" class="gen-cancel">✕</button>
+        <span class="gen-msg"></span>`;
+      const inp=bar.querySelector('.gen-detail'); inp.value=iconDetailDraft;
+      inp.addEventListener('input',()=>{iconDetailDraft=inp.value;});
+      inp.addEventListener('keydown',e=>{ if(e.key==='Enter') runIconGen(it,bar); });
+      bar.querySelector('.gen-go').addEventListener('click',()=>runIconGen(it,bar));
+      bar.querySelector('.gen-cancel').addEventListener('click',()=>{iconPromptFor=null;iconDetailDraft='';renderList();});
+      list.appendChild(bar);
+      inp.focus();
+    }
   });
   list.querySelectorAll('.nameInput').forEach(inp=>inp.addEventListener('change',e=>{items.find(i=>i.id===e.target.dataset.id).name=e.target.value;renderRoom();}));
   list.querySelectorAll('.wInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.w=Math.max(0.5,parseFloat(e.target.value)||it.w);it.x=Math.min(it.x,MAIN_W-it.w);renderRoom();}));
   list.querySelectorAll('.hInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.h=Math.max(0.5,parseFloat(e.target.value)||it.h);it.y=Math.min(it.y,H-it.h);renderRoom();}));
   list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.rot=((it.rot||0)+45)%360;renderRoom();}));
-  list.querySelectorAll('.icon-btn:not(.rotate-btn)').forEach(btn=>btn.addEventListener('click',e=>{items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
+  list.querySelectorAll('.del-btn').forEach(btn=>btn.addEventListener('click',e=>{items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
+  list.querySelectorAll('.gen-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=e.target.dataset.id;iconPromptFor=(iconPromptFor===id)?null:id;iconDetailDraft='';renderList();}));
+  list.querySelectorAll('.revert-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const it=items.find(i=>i.id===e.target.dataset.id);if(it) delete it.svg;renderRoom();}));
 }
 
 function updateStats(){
@@ -1891,12 +1973,14 @@ function addCustomItem(){
 function exportLayout(){
   selectedId = null;
   renderRoom();
-  const itemsJson = JSON.stringify(items, null, 2);
+  // Escape "<" so stored SVG strings can never form a script-closing tag or
+  // comment-open inside the exported inline script (parses back to the same JSON).
+  const itemsJson = JSON.stringify(items, null, 2).replace(/</g, '\\u003c');
   document.documentElement.setAttribute('data-pinned','1');
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   document.documentElement.removeAttribute('data-pinned');
   html = html.replace(/let items\s*=\s*JSON\.parse\([^;]*\);/, 'let items = ' + itemsJson + ';');
-  html = html.replace(/let walkPaths\s*=\s*JSON\.parse\([^;]*\);/, 'let walkPaths = ' + JSON.stringify(walkPaths, null, 2) + ';');
+  html = html.replace(/let walkPaths\s*=\s*JSON\.parse\([^;]*\);/, 'let walkPaths = ' + JSON.stringify(walkPaths, null, 2).replace(/</g, '\\u003c') + ';');
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2301,6 +2385,8 @@ function activateLayout(n){
   const saved=loadSaved(); const rec=saved[n]; if(!rec) return;
   const data=Array.isArray(rec)?{items:rec}:rec;   // back-compat: older records were a bare items array
   items=JSON.parse(JSON.stringify(data.items||[]));
+  // saved/imported layouts are untrusted input — re-sanitize any AI icon SVG
+  items.forEach(it=>{ if(it.svg){ const c=sanitizeSvg(it.svg); if(c) it.svg=c; else delete it.svg; } });
   if(data.walkPaths){ walkPaths=JSON.parse(JSON.stringify(data.walkPaths)); shownActs.clear(); }
   selectedId=null; renderPathList(); renderRoom();
 }
