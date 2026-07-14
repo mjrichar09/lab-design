@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/layouts/upstream_lab_layout.html",
+      "permanent": false
+    }
+  ]
+}
