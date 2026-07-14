@@ -502,8 +502,12 @@
 
   /* Walking-distance box */
   .walkbox{border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;margin:8px 0 4px;background:var(--white);box-shadow:var(--shadow-1);}
-  .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-sm);margin-bottom:7px;}
+  .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-sm);margin-bottom:7px;cursor:pointer;user-select:none;}
   .walkbox .wb-total b{font-size:15px;font-family:'IBM Plex Mono',monospace;}
+  .wb-caret{display:inline-block;width:0.8em;font-size:11px;transition:transform .15s;color:var(--slate);}
+  .walkbox.collapsed .wb-caret{transform:rotate(-90deg);}
+  .walkbox.collapsed > :not(.wb-total){display:none;}
+  .walkbox.collapsed .wb-total{margin-bottom:0;}
   .walk-row{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:3px 0;border-bottom:1px dashed var(--line);}
   .walk-row input,.walk-row select{margin:0;}
   .walk-row .wshow{cursor:pointer;flex:none;}
@@ -757,7 +761,7 @@
       <h1>Upstream Process Development Suite</h1>
       <div class="sub">Interactive equipment layout &amp; workflow travel analysis</div>
       <div class="meta">
-        <span class="chip">1,409 SF working area</span>
+        <span class="chip" id="areaChip">1,409 SF working area</span>
         <span class="chip">+ RM 34166 · analytical storage</span>
         <span class="chip">traced to site plan</span>
         <span class="chip">storage shown for reference — not editable</span>
@@ -765,14 +769,16 @@
     </div>
     <div class="preset-picker">
       <span class="ctrl-group"><label for="scaleRange">Scale</label><input type="range" id="scaleRange" min="8" max="30" step="1"><button type="button" id="fitBtn" class="fit-btn">Fit width</button></span>
+      <span class="ctrl-group"><label for="unitSelect">Units</label><select id="unitSelect"><option value="ft">Feet</option><option value="m">Meters</option></select></span>
       <span class="ctrl-group"><label for="themeSelect">Theme</label><select id="themeSelect"></select></span>
+      <span class="ctrl-group"><label for="unitSelect">Units</label><select id="unitSelect"><option value="ft">ft</option><option value="m">m</option></select></span>
     </div>
   </div>
 </header>
 
 <div class="app">
   <div class="sidebar">
-    <h2>Room Utilization (1,409 SF zone only)</h2>
+    <h2>Room Utilization (<span id="zoneNote">1,409 SF</span>
     <div class="stat-row"><span>Working area</span><b id="roomArea">1,409 SF</b></div>
     <div class="stat-row"><span>Equipment footprint</span><b id="usedArea">477 SF</b></div>
     <div class="stat-row"><span>Open floor / aisles</span><b id="openArea">932 SF</b></div>
@@ -780,7 +786,7 @@
     <div class="stat-row"><span id="pctLabel">33.9% occupied</span><span></span></div>
 
     <div class="walkbox">
-      <div class="wb-total"><span>Walking distance / day</span><b id="walkTotal">— ft</b></div>
+      <div class="wb-total" id="walkCollapse" title="Click to collapse / expand"><span><span class="wb-caret">▾</span> Walking distance / day</span><b id="walkTotal">— ft</b></div>
       <div id="walkList"></div>
       <button type="button" id="definePathBtn" class="wb-define">＋ Define path</button>
       <div id="buildBar" class="wb-build" style="display:none">
@@ -793,7 +799,7 @@
     <div class="walkbox clearbox">
       <div class="cb-head"><span>Clearance &amp; egress</span><span id="clearSummary" class="cb-summary ok">— </span></div>
       <div class="cb-row"><label class="cb-toggle"><input type="checkbox" id="clearToggle"> Show clearance checks</label></div>
-      <div class="cb-row"><span>Min aisle</span><input type="number" id="minAisle" class="cb-min" min="1" step="0.5" value="3"><span>ft</span></div>
+      <div class="cb-row"><span>Min aisle</span><input type="number" id="minAisle" class="cb-min" min="0.1" step="0.1" value="3"><span id="minAisleUnit">ft</span></div>
       <div class="wb-hint">Flags aisles narrower than the minimum, equipment overlaps, and anything blocking a door / exit. Warnings update live as you move equipment.</div>
     </div>
 
@@ -1831,6 +1837,7 @@ async function runIconGen(it, bar){
     if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
     const clean=sanitizeSvg(data.svg);
     if(!clean) throw new Error('Unusable SVG — try again');
+    pushUndo();
     it.svg=clean; iconPromptFor=null; iconDetailDraft='';
     renderRoom();
   }catch(err){
@@ -1838,6 +1845,46 @@ async function runIconGen(it, bar){
     msg.classList.add('err'); go.disabled=false;
   }
 }
+
+/* ---------- Display units (internal geometry always stays in feet) ---------- */
+const M_PER_FT=0.3048, SQM_PER_SQFT=0.09290304;
+let displayUnit='ft';
+try{ const u=localStorage.getItem('labUnit'); if(u==='m'||u==='ft') displayUnit=u; }catch(e){}
+const cvLen=ft=>displayUnit==='m'?ft*M_PER_FT:ft;
+const toFt=v=>displayUnit==='m'?v/M_PER_FT:v;
+const nLen=ft=>String(Math.round(cvLen(ft)*100)/100);
+function unitStep(){ return displayUnit==='m'?'0.1':'0.5'; }
+function dimLabel(it){ return displayUnit==='m'?`${nLen(it.w)}×${nLen(it.h)} m`:`${nLen(it.w)}'×${nLen(it.h)}'`; }
+function lenTag(ft){ return displayUnit==='m'?nLen(ft)+' m':nLen(ft)+'′'; }
+function distLabel(ft){ return displayUnit==='m'?Math.round(ft*M_PER_FT).toLocaleString()+' m':Math.round(ft).toLocaleString()+' ft'; }
+function areaLabel(sqft){ return displayUnit==='m'?Math.round(sqft*SQM_PER_SQFT).toLocaleString()+' m²':Math.round(sqft).toLocaleString()+' SF'; }
+function setUnit(u){
+  if(u!==displayUnit){ displayUnit=u; try{ localStorage.setItem('labUnit',u); }catch(e){} }
+  const mi=document.getElementById('minAisle'); if(mi){ mi.value=nLen(minAisleFt); mi.step=unitStep(); }
+  const ml=document.getElementById('minAisleUnit'); if(ml) ml.textContent=displayUnit==='m'?'m':'ft';
+  renderRoom();
+}
+
+/* ---------- Undo (Ctrl/Cmd+Z) — snapshots items + walk paths before edits ---------- */
+const undoStack=[];
+function snapshotState(){ return {items:JSON.stringify(items), walk:JSON.stringify(walkPaths), shown:[...shownActs], sel:selectedId}; }
+function pushUndo(){ undoStack.push(snapshotState()); if(undoStack.length>60) undoStack.shift(); }
+function doUndo(){
+  if(!undoStack.length) return;
+  const s=undoStack.pop();
+  items=JSON.parse(s.items); walkPaths=JSON.parse(s.walk);
+  shownActs.clear(); s.shown.forEach(id=>shownActs.add(id));
+  selectedId=s.sel;
+  renderPathList(); renderRoom();
+}
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && !e.shiftKey && (e.key==='z'||e.key==='Z')){
+    const t=e.target;
+    // don't hijack a text field's own undo while it's focused
+    if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA') && t.type!=='checkbox' && t.type!=='range') return;
+    e.preventDefault(); doUndo();
+  }
+});
 
 function renderRoom(){
   equipLayer.innerHTML='';
@@ -1853,7 +1900,7 @@ function renderRoom(){
     el.style.color=COLORS[it.color]||'#333';   // AI icons stroke with currentColor → category color, theme-aware
     const rot=it.rot||0; el.style.setProperty('--rot', rot+'deg');   // composed with lift/pop in the hand theme
     el.dataset.id=it.id;
-    el.innerHTML=`${itemIcon(it)}<div class="lbl"><span>${it.name}</span></div><div class="dimtag">${it.w}'×${it.h}'</div><div class="resize-handle"></div>`;
+    el.innerHTML=`${itemIcon(it)}<div class="lbl"><span>${it.name}</span></div><div class="dimtag">${dimLabel(it)}</div><div class="resize-handle"></div>`;
     const lblEl=el.querySelector('.lbl');
     const mode=labelFit(it.name, it.w*PPF-6, it.h*PPF-6);
     if(mode==='rot') lblEl.classList.add('lbl-rot');
@@ -1878,7 +1925,7 @@ function renderRoom(){
 function startDrag(e,it){
   if(pathBuild){ e.preventDefault(); e.stopPropagation(); buildAddStop(it.id); return; }   // click adds a stop, not a drag
   e.preventDefault(); selectedId=it.id;
-  dragState={it,startX:e.clientX,startY:e.clientY,origX:it.x,origY:it.y};
+  dragState={it,startX:e.clientX,startY:e.clientY,origX:it.x,origY:it.y,snap:snapshotState()};
   document.addEventListener('mousemove',onDrag); document.addEventListener('mouseup',endDrag);
   renderRoom();
 }
@@ -1890,12 +1937,15 @@ function onDrag(e){
   nx=Math.max(0,Math.min(MAIN_W-it.w,nx)); ny=Math.max(0,Math.min(H-it.h,ny));
   it.x=nx; it.y=ny; renderRoom();
 }
-function endDrag(){dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);renderRoom();/* re-run obstacle-aware routing now the gesture is over */}
+function endDrag(){
+  if(dragState){ const {it,origX,origY,snap}=dragState; if(snap&&(it.x!==origX||it.y!==origY)){ undoStack.push(snap); if(undoStack.length>60) undoStack.shift(); } }
+  dragState=null;document.removeEventListener('mousemove',onDrag);document.removeEventListener('mouseup',endDrag);renderRoom();/* re-run obstacle-aware routing now the gesture is over */
+}
 
 function startResize(e,it){
   if(sizeLocked) return;
   e.preventDefault(); selectedId=it.id;
-  resizeState={it,startX:e.clientX,startY:e.clientY,origW:it.w,origH:it.h};
+  resizeState={it,startX:e.clientX,startY:e.clientY,origW:it.w,origH:it.h,snap:snapshotState()};
   document.addEventListener('mousemove',onResize); document.addEventListener('mouseup',endResize);
 }
 function onResize(e){
@@ -1906,7 +1956,10 @@ function onResize(e){
   nw=Math.min(nw,MAIN_W-it.x); nh=Math.min(nh,H-it.y);
   it.w=nw; it.h=nh; renderRoom();
 }
-function endResize(){resizeState=null;document.removeEventListener('mousemove',onResize);document.removeEventListener('mouseup',endResize);renderRoom();/* re-route around the new size */}
+function endResize(){
+  if(resizeState){ const {it,origW,origH,snap}=resizeState; if(snap&&(it.w!==origW||it.h!==origH)){ undoStack.push(snap); if(undoStack.length>60) undoStack.shift(); } }
+  resizeState=null;document.removeEventListener('mousemove',onResize);document.removeEventListener('mouseup',endResize);renderRoom();/* re-route around the new size */
+}
 
 function renderList(){
   const list=document.getElementById('itemList'); list.innerHTML='';
@@ -1914,9 +1967,9 @@ function renderList(){
     const row=document.createElement('div'); row.className='item-row';
     row.innerHTML=`<span class="swatch" style="background:${COLORS[it.color]}"></span>
       <input type="text" value="${it.name}" data-id="${it.id}" class="nameInput">
-      <input type="number" step="0.5" value="${it.w}" class="wInput" data-id="${it.id}">
+      <input type="number" step="${unitStep()}" value="${nLen(it.w)}" class="wInput" data-id="${it.id}">
       <span class="dim">×</span>
-      <input type="number" step="0.5" value="${it.h}" class="hInput" data-id="${it.id}">
+      <input type="number" step="${unitStep()}" value="${nLen(it.h)}" class="hInput" data-id="${it.id}">
       <button class="icon-btn rotate-btn" data-id="${it.id}">↻</button>
       <button class="icon-btn dup-btn" title="Duplicate (then rename)" data-id="${it.id}">⧉</button>
       <button class="icon-btn gen-btn" title="Generate AI icon (Groq)" data-id="${it.id}">✨</button>
@@ -1939,21 +1992,22 @@ function renderList(){
       inp.focus();
     }
   });
-  list.querySelectorAll('.nameInput').forEach(inp=>inp.addEventListener('change',e=>{items.find(i=>i.id===e.target.dataset.id).name=e.target.value;renderRoom();}));
-  list.querySelectorAll('.wInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.w=Math.max(0.5,parseFloat(e.target.value)||it.w);it.x=Math.min(it.x,MAIN_W-it.w);renderRoom();}));
-  list.querySelectorAll('.hInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.h=Math.max(0.5,parseFloat(e.target.value)||it.h);it.y=Math.min(it.y,H-it.h);renderRoom();}));
-  list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{const it=items.find(i=>i.id===e.target.dataset.id);it.rot=((it.rot||0)+45)%360;renderRoom();}));
-  list.querySelectorAll('.del-btn').forEach(btn=>btn.addEventListener('click',e=>{items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
+  list.querySelectorAll('.nameInput').forEach(inp=>inp.addEventListener('change',e=>{pushUndo();items.find(i=>i.id===e.target.dataset.id).name=e.target.value;renderRoom();}));
+  list.querySelectorAll('.wInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);const ft=toFt(parseFloat(e.target.value));if(!(ft>0)){renderList();return;}pushUndo();it.w=Math.max(0.5,ft);it.x=Math.min(it.x,MAIN_W-it.w);renderRoom();}));
+  list.querySelectorAll('.hInput').forEach(inp=>inp.addEventListener('change',e=>{const it=items.find(i=>i.id===e.target.dataset.id);const ft=toFt(parseFloat(e.target.value));if(!(ft>0)){renderList();return;}pushUndo();it.h=Math.max(0.5,ft);it.y=Math.min(it.y,H-it.h);renderRoom();}));
+  list.querySelectorAll('.rotate-btn').forEach(btn=>btn.addEventListener('click',e=>{pushUndo();const it=items.find(i=>i.id===e.target.dataset.id);it.rot=((it.rot||0)+45)%360;renderRoom();}));
+  list.querySelectorAll('.del-btn').forEach(btn=>btn.addEventListener('click',e=>{pushUndo();items=items.filter(i=>i.id!==e.target.dataset.id);renderRoom();}));
   list.querySelectorAll('.gen-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=e.target.dataset.id;iconPromptFor=(iconPromptFor===id)?null:id;iconDetailDraft='';renderList();}));
-  list.querySelectorAll('.revert-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const it=items.find(i=>i.id===e.target.dataset.id);if(it) delete it.svg;renderRoom();}));
+  list.querySelectorAll('.revert-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();pushUndo();const it=items.find(i=>i.id===e.target.dataset.id);if(it) delete it.svg;renderRoom();}));
   list.querySelectorAll('.dup-btn').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const it=items.find(i=>i.id===e.target.dataset.id);if(it) duplicateItem(it);}));
 }
 
 function updateStats(){
   const used=items.reduce((s,it)=>s+it.w*it.h,0);
   const total=1409;
-  document.getElementById('usedArea').textContent=Math.round(used).toLocaleString()+' SF';
-  document.getElementById('openArea').textContent=Math.round(total-used).toLocaleString()+' SF';
+  const ra=document.getElementById('roomArea'); if(ra) ra.textContent=areaLabel(total);
+  document.getElementById('usedArea').textContent=areaLabel(used);
+  document.getElementById('openArea').textContent=areaLabel(total-used);
   const pct=Math.min(100,(used/total*100));
   document.getElementById('barFill').style.width=pct+'%';
   document.getElementById('pctLabel').textContent=pct.toFixed(1)+'% occupied';
@@ -1971,11 +2025,13 @@ function nextCustomId(){
   return id;
 }
 function addCustomItem(){
+  pushUndo();
   const id=nextCustomId();
   items.push({id,name:'New item',w:3,h:3,x:0,y:0,color:'blue',icon:'default'});
   selectedId=id; renderRoom();
 }
 function duplicateItem(src){
+  pushUndo();
   const copy=JSON.parse(JSON.stringify(src));   // carries color/icon/rot/AI svg
   copy.id=nextCustomId();                       // fresh id — walk paths keep pointing at the original
   copy.name=src.name+' copy';
@@ -2182,9 +2238,9 @@ function updateWalk(){
     const f=pathFtPerDay(p);
     if(f===null){ ok=false; } else { total+=f; }
     const lbl=document.getElementById('wft-'+p.id);
-    if(lbl) lbl.textContent = f===null ? 'n/a' : Math.round(f)+' ft';
+    if(lbl) lbl.textContent = f===null ? 'n/a' : distLabel(f);
   }
-  const wt=document.getElementById('walkTotal'); if(wt) wt.textContent = Math.round(total).toLocaleString()+' ft'+(ok?'':' *');
+  const wt=document.getElementById('walkTotal'); if(wt) wt.textContent = distLabel(total)+(ok?'':' *');
 }
 function renderPathList(){
   const list=document.getElementById('walkList'); if(!list) return;
@@ -2203,10 +2259,10 @@ function renderPathList(){
   });
   const byId=id=>walkPaths.find(p=>p.id===id);
   list.querySelectorAll('.wshow').forEach(cb=>cb.addEventListener('change',e=>{ const id=e.target.dataset.id; if(e.target.checked) shownActs.add(id); else shownActs.delete(id); renderPaths(); }));
-  list.querySelectorAll('.wname-edit').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p) p.name=e.target.value; }));
-  list.querySelectorAll('.wfreq').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ p.freq=Math.max(0,parseFloat(e.target.value)||0); updateWalk(); } }));
-  list.querySelectorAll('.wunit').forEach(sel=>sel.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ p.unit=e.target.value; updateWalk(); renderPathList(); } }));
-  list.querySelectorAll('.wdel').forEach(btn=>btn.addEventListener('click',e=>{ const id=e.currentTarget.dataset.id; walkPaths=walkPaths.filter(p=>p.id!==id); shownActs.delete(id); renderPathList(); updateWalk(); renderPaths(); }));
+  list.querySelectorAll('.wname-edit').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ pushUndo(); p.name=e.target.value; } }));
+  list.querySelectorAll('.wfreq').forEach(inp=>inp.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ pushUndo(); p.freq=Math.max(0,parseFloat(e.target.value)||0); updateWalk(); } }));
+  list.querySelectorAll('.wunit').forEach(sel=>sel.addEventListener('change',e=>{ const p=byId(e.target.dataset.id); if(p){ pushUndo(); p.unit=e.target.value; updateWalk(); renderPathList(); } }));
+  list.querySelectorAll('.wdel').forEach(btn=>btn.addEventListener('click',e=>{ const id=e.currentTarget.dataset.id; pushUndo(); walkPaths=walkPaths.filter(p=>p.id!==id); shownActs.delete(id); renderPathList(); updateWalk(); renderPaths(); }));
   updateWalk();
 }
 
@@ -2243,6 +2299,7 @@ function buildDone(){
   const legs=pathBuild.legs.filter(l=>l.length>=2), color=pathBuild.color;
   exitPathBuild();
   if(legs.length){
+    pushUndo();
     const id=uid();
     walkPaths.push({id, name:'Path '+(walkPaths.length+1), color, unit:'day', freq:1, legs});
     shownActs.add(id);
@@ -2346,13 +2403,13 @@ function computeClearanceIssues(){
       const gap=-oy; if(gap>0.05 && gap<minAisleFt){
         const x0=Math.max(a.x,b.x), x1=Math.min(a.x+a.w,b.x+b.w), xm=(x0+x1)/2;
         const yTop=(a.y<b.y? a.y+a.h : b.y+b.h);
-        issues.push({type:'aisle', seg:[xm,yTop,xm,yTop+gap], label:gap.toFixed(1)+'′', itemIds:[a.id,b.id]});
+        issues.push({type:'aisle', seg:[xm,yTop,xm,yTop+gap], label:lenTag(gap), itemIds:[a.id,b.id]});
       }
     } else if(oy>=1 && ox<0){              // side by side → vertical corridor
       const gap=-ox; if(gap>0.05 && gap<minAisleFt){
         const y0=Math.max(a.y,b.y), y1=Math.min(a.y+a.h,b.y+b.h), ym=(y0+y1)/2;
         const xLeft=(a.x<b.x? a.x+a.w : b.x+b.w);
-        issues.push({type:'aisle', seg:[xLeft,ym,xLeft+gap,ym], label:gap.toFixed(1)+'′', itemIds:[a.id,b.id]});
+        issues.push({type:'aisle', seg:[xLeft,ym,xLeft+gap,ym], label:lenTag(gap), itemIds:[a.id,b.id]});
       }
     }
   }
@@ -2440,8 +2497,20 @@ function saveLayoutAs(n){ const saved=loadSaved(); saved[n]={items:JSON.parse(JS
   const persist=()=>{ try{ localStorage.setItem('labClearance', JSON.stringify({on:clearanceOn, min:minAisleFt})); }catch(e){} };
   const tog=document.getElementById('clearToggle'), min=document.getElementById('minAisle');
   if(tog){ tog.checked=clearanceOn; tog.addEventListener('change',e=>{ clearanceOn=e.target.checked; persist(); renderWarnings(); }); }
-  if(min){ min.value=minAisleFt; min.addEventListener('change',e=>{ minAisleFt=Math.max(1,parseFloat(e.target.value)||3); e.target.value=minAisleFt; persist(); renderWarnings(); }); }
+  if(min){ min.value=nLen(minAisleFt); min.step=unitStep(); min.addEventListener('change',e=>{ const ft=toFt(parseFloat(e.target.value)); if(ft>0) minAisleFt=Math.max(0.3,ft); e.target.value=nLen(minAisleFt); persist(); renderWarnings(); }); }
   renderWarnings();
+})();
+
+/* ---------- Units selector + walk-panel collapse ---------- */
+(function(){
+  const us=document.getElementById('unitSelect');
+  if(us){ us.value=displayUnit; us.addEventListener('change',e=>setUnit(e.target.value)); }
+  const ml=document.getElementById('minAisleUnit'); if(ml) ml.textContent=displayUnit==='m'?'m':'ft';
+  const wc=document.getElementById('walkCollapse'), wb=wc&&wc.closest('.walkbox');
+  if(wc&&wb){
+    try{ if(localStorage.getItem('labWalkCollapsed')==='1') wb.classList.add('collapsed'); }catch(e){}
+    wc.addEventListener('click',()=>{ const c=wb.classList.toggle('collapsed'); try{ localStorage.setItem('labWalkCollapsed', c?'1':'0'); }catch(e){} });
+  }
 })();
 
 /* ---------- View scale (fit-to-width / user-adjustable zoom) ---------- */
