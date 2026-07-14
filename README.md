@@ -36,8 +36,22 @@ generation needs the hosted `/api` endpoint.
 **Vercel setup:** in the project's settings, add the environment variable
 `GROQ_API_KEY` (from console.groq.com). Optional: `GROQ_MODEL` overrides the
 default model (`openai/gpt-oss-120b`) — a config change if Groq deprecates the
-id. Note the endpoint is unauthenticated on the public URL (prompt/response
+id. Note the endpoints are unauthenticated on the public URL (prompt/response
 lengths are capped server-side).
+
+### Optimize & review (sidebar box)
+
+- **✦ Auto-optimize** — rearranges movable equipment to shorten the daily
+  walking paths. A dialog first lets you give items a shared **group letter**
+  when they must sit together (a bioreactor and its ATF, a scale beside its
+  tank) and tick **Keep fixed** for anything that can't move (existing islands
+  are pre-ticked). It runs a constrained simulated-annealing pass that never
+  overlaps equipment or leaves the room, shows the before→after walking
+  distance, and is fully undoable (Ctrl+Z). Works offline — no server needed.
+- **🔍 Review layout** — an AI read of the current layout (walking hot spots,
+  clearance/egress problems, adjacency & clean-to-dirty flow) via the
+  `api/critique.js` Vercel proxy. Uses the same `GROQ_API_KEY`; needs the
+  hosted version (degrades gracefully offline).
 
 ### Space summary (as of v2)
 

@@ -146,9 +146,17 @@ first (clearance & egress checks) is **done** — see `Status_update.md`.
 - [ ] **Utilities & requirements roll-up** — tag each item with power/gas/drain/
       vacuum/exhaust/floor-load needs; total them for facilities and optionally
       mark utility drops on the plan and flag items placed far from them.
-- [ ] **Auto-optimize placement** — use the defined weighted paths to propose a
-      rearrangement that minimizes total walking while respecting clearances;
-      user accepts or tweaks. (Also: nearest-exit distance readout via the router.)
+- [x] **Auto-optimize placement** — ✦ Auto-optimize rearranges movable
+      equipment to shorten the weighted walking paths. Pre-run dialog captures
+      "sit-together" groups + "keep fixed" items (islands pre-locked);
+      constrained simulated-annealing keeps everything non-overlapping and
+      in-bounds, shows before→after distance, and is undoable. *Follow-up:
+      nearest-exit distance readout via the router; honor min-aisle as a soft
+      objective term too.*
+- [x] **Layout critic (AI review)** — 🔍 Review layout sends the layout +
+      walking stats + clearance issues to a Groq LLM (`api/critique.js` proxy)
+      and returns plain-English, item-specific suggestions on walking, clearance/
+      egress, and adjacency/flow. Needs the hosted version; degrades offline.
 - [ ] **Functional zones** — draw/label areas (prep, upstream, harvest, storage,
       gowning); per-zone area + check equipment sits in the right zone.
 - [ ] **Adjacency rules** — "must be near" / "must be apart" constraints with
