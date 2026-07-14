@@ -504,6 +504,10 @@
   .walkbox{border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;margin:8px 0 4px;background:var(--white);box-shadow:var(--shadow-1);}
   .walkbox .wb-total{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-sm);margin-bottom:7px;}
   .walkbox .wb-total b{font-size:15px;font-family:'IBM Plex Mono',monospace;}
+  .walkbox .wb-total-label{display:flex;align-items:baseline;gap:4px;}
+  .walkbox .wb-collapse-btn{background:none;border:none;padding:0;line-height:1;font-size:10px;color:var(--slate);cursor:pointer;transition:transform .15s ease;}
+  .walkbox.wb-collapsed .wb-collapse-btn{transform:rotate(-90deg);}
+  #walkBox.wb-collapsed > *:not(.wb-total){display:none;}
   .walk-row{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:3px 0;border-bottom:1px dashed var(--line);}
   .walk-row input,.walk-row select{margin:0;}
   .walk-row .wshow{cursor:pointer;flex:none;}
@@ -779,8 +783,8 @@
     <div class="bar-track"><div class="bar-fill" id="barFill" style="width: 33.868%;"></div></div>
     <div class="stat-row"><span id="pctLabel">33.9% occupied</span><span></span></div>
 
-    <div class="walkbox">
-      <div class="wb-total"><span>Walking distance / day</span><b id="walkTotal">— ft</b></div>
+    <div class="walkbox" id="walkBox">
+      <div class="wb-total"><span class="wb-total-label">Walking distance / day <button type="button" id="walkCollapseBtn" class="wb-collapse-btn" aria-expanded="true" title="Collapse">▾</button></span><b id="walkTotal">— ft</b></div>
       <div id="walkList"></div>
       <button type="button" id="definePathBtn" class="wb-define">＋ Define path</button>
       <div id="buildBar" class="wb-build" style="display:none">
@@ -2432,6 +2436,17 @@ function saveLayoutAs(n){ const saved=loadSaved(); saved[n]={items:JSON.parse(JS
   if(dn) dn.addEventListener('click',buildDone);
   if(cn) cn.addEventListener('click',buildCancel);
   document.addEventListener('keydown',e=>{ if(e.key==='Escape' && pathBuild) buildCancel(); });
+})();
+
+/* ---------- Walking-distance panel collapse + persistence ---------- */
+(function(){
+  const btn=document.getElementById('walkCollapseBtn'), box=document.getElementById('walkBox');
+  if(!btn || !box) return;
+  let collapsed=false;
+  try{ collapsed = localStorage.getItem('labWalkCollapsed')==='1'; }catch(e){}
+  const apply=()=>{ box.classList.toggle('wb-collapsed', collapsed); btn.setAttribute('aria-expanded', String(!collapsed)); btn.title = collapsed?'Expand':'Collapse'; };
+  apply();
+  btn.addEventListener('click',()=>{ collapsed=!collapsed; try{ localStorage.setItem('labWalkCollapsed', collapsed?'1':'0'); }catch(e){} apply(); });
 })();
 
 /* ---------- Clearance panel wiring + persistence ---------- */
