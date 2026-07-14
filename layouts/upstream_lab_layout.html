@@ -771,14 +771,13 @@
       <span class="ctrl-group"><label for="scaleRange">Scale</label><input type="range" id="scaleRange" min="8" max="30" step="1"><button type="button" id="fitBtn" class="fit-btn">Fit width</button></span>
       <span class="ctrl-group"><label for="unitSelect">Units</label><select id="unitSelect"><option value="ft">Feet</option><option value="m">Meters</option></select></span>
       <span class="ctrl-group"><label for="themeSelect">Theme</label><select id="themeSelect"></select></span>
-      <span class="ctrl-group"><label for="unitSelect">Units</label><select id="unitSelect"><option value="ft">ft</option><option value="m">m</option></select></span>
     </div>
   </div>
 </header>
 
 <div class="app">
   <div class="sidebar">
-    <h2>Room Utilization (<span id="zoneNote">1,409 SF</span>
+    <h2><span>Room Utilization (<span id="zoneNote">1,409 SF</span> zone only)</span></h2>
     <div class="stat-row"><span>Working area</span><b id="roomArea">1,409 SF</b></div>
     <div class="stat-row"><span>Equipment footprint</span><b id="usedArea">477 SF</b></div>
     <div class="stat-row"><span>Open floor / aisles</span><b id="openArea">932 SF</b></div>
@@ -2005,6 +2004,7 @@ function renderList(){
 function updateStats(){
   const used=items.reduce((s,it)=>s+it.w*it.h,0);
   const total=1409;
+  const zn=document.getElementById('zoneNote'); if(zn) zn.textContent=areaLabel(total);
   const ra=document.getElementById('roomArea'); if(ra) ra.textContent=areaLabel(total);
   document.getElementById('usedArea').textContent=areaLabel(used);
   document.getElementById('openArea').textContent=areaLabel(total-used);
