@@ -2662,7 +2662,7 @@ function applyTheme(id){
         <td style="text-align:center"><input type="checkbox" class="opt-lock"${locked?' checked':''}></td>
       </tr>`;
     }).join('');
-    const body=`<div class="opt-note">Give items the <b>same group letter</b> if they must sit together (e.g. a bioreactor and its ATF, or a scale next to its tank). Tick <b>Keep fixed</b> for anything that can't move — existing islands are pre-ticked. Then run: the optimizer shortens the walking paths without overlapping equipment or leaving the room.</div>
+    const body=`<div class="opt-note">Give items the <b>same group letter</b> if they must sit together (e.g. a bioreactor and its ATF, or a scale next to its tank). Tick <b>Keep fixed</b> for anything that can't move — existing islands are pre-ticked. Bench objects stacked on top of a larger item are detected automatically and moved as a unit. Then run: the optimizer shortens the walking paths, keeps aisles clear, and never overlaps separate equipment.</div>
       <table class="opt-table"><thead><tr><th>Item</th><th>Group</th><th>Keep&nbsp;fixed</th></tr></thead><tbody>${rows}</tbody></table>`;
     const card=openModal('Auto-optimize layout', body, `<button class="cancel">Cancel</button><button class="primary run">Run optimize</button>`);
     card.querySelector('.cancel').addEventListener('click',closeModal);
@@ -2693,6 +2693,7 @@ function applyTheme(id){
       <p><span class="big">${distLabel(before)}</span> &rarr; <span class="big">${distLabel(after)}</span></p>
       <p>${after<before ? `That's about <b>${delta}% shorter</b>.` : `No shorter arrangement found under these constraints — kept the optimizer's best.`}</p>
       <p>Aisles narrower than ${lenTag(minAisleFt)} min: <b>${aisleBefore}</b> &rarr; <b>${aisleAfter}</b>${aisleAfter<aisleBefore?` (${aisleBefore-aisleAfter} cleared)`:''}</p>
+      ${res.stackCount? `<p style="color:var(--slate);font-size:var(--fs-xs)">Kept ${res.stackCount} bench stack${res.stackCount>1?'s':''} together, and never overlapped separate equipment.</p>`:''}
       ${res.adjUnmet? `<p style="color:var(--danger)">⚠ Couldn't fully seat ${res.adjUnmet} "sit-together" pair(s) — placed as close as space allowed.</p>`:''}
       <p style="color:var(--slate);font-size:var(--fs-xs)">Press <b>Ctrl+Z</b> or Undo to revert. The optimizer minimises straight-line path length; the panel total is the obstacle-aware route, so the two differ slightly.</p>
     </div>`;
@@ -2704,20 +2705,33 @@ function applyTheme(id){
   function optimizePositions(groups, locked){
     const pos={}; items.forEach(it=>pos[it.id]={x:it.x,y:it.y,w:it.w,h:it.h,rot:it.rot||0});
     const ids=Object.keys(pos);
-    const movable=ids.filter(id=>!locked.has(id));
     const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
     const boxOf=id=>{ const p=pos[id]; return itemBox({id,x:p.x,y:p.y,w:p.w,h:p.h,rot:p.rot},0); };
-    // allow the same intentional stacking the clearance checker ignores (one centre inside the other)
-    function overlapBad(b1,b2){
-      if(!rectsOverlap(b1,b2)) return false;
-      const c1x=b1.x+b1.w/2,c1y=b1.y+b1.h/2,c2x=b2.x+b2.w/2,c2y=b2.y+b2.h/2;
-      if(ptInRect(c1x,c1y,b2)||ptInRect(c2x,c2y,b1)) return false;
-      return true;
-    }
-    // Aisle pinch between two boxes — same test as computeClearanceIssues:
-    // they face each other (>=1 ft projection overlap on one axis) with a gap
-    // narrower than the required min aisle. Touching (gap<=0.05) is fine, so
-    // items placed flush for adjacency don't count. Returns the gap, or null.
+    const interArea=(a,b)=>{ const w=Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x), h=Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y); return Math.max(0,w)*Math.max(0,h); };
+
+    // Detect bench stacks: an item that mostly sits on top of a larger item
+    // (>=50% of its footprint covered) is a "bench object" bound to that host.
+    // A stack moves as one rigid unit and keeps its members' relative positions.
+    const hostOf={};
+    ids.forEach(cid=>{
+      const cb=boxOf(cid), ca=cb.w*cb.h; let host=null, hostArea=Infinity;
+      ids.forEach(hid=>{ if(hid===cid) return; const hb=boxOf(hid), ha=hb.w*hb.h;
+        if(ha<=ca) return;                                   // host must be the larger box
+        if(interArea(cb,hb)>=0.5*ca && ha<hostArea){ host=hid; hostArea=ha; } });
+      if(host) hostOf[cid]=host;
+    });
+    const rootOf=id=>{ let h=id, g=0; while(hostOf[h] && g++<20) h=hostOf[h]; return h; };
+    const stackMembers={};                                   // rootId -> [root, ...bench objects]
+    ids.forEach(id=>{ const r=rootOf(id); (stackMembers[r]=stackMembers[r]||[]).push(id); });
+    const anchors=ids.filter(id=>!hostOf[id]);
+    const sameStack=(x,y)=>rootOf(x)===rootOf(y);
+    // a stack is fixed if any of its members is locked (islands pre-locked in the dialog)
+    const movable=anchors.filter(a=>!stackMembers[a].some(m=>locked.has(m)));
+    const stackCount=Object.values(stackMembers).filter(s=>s.length>1).length;
+
+    // Aisle pinch — same test as computeClearanceIssues: two boxes face each
+    // other (>=1 ft projection overlap on one axis) with a gap narrower than the
+    // min aisle. Touching (gap<=0.05) is fine, so flush adjacency doesn't count.
     function aisleGap(a,b){
       if(rectsOverlap(a,b)) return null;
       const ox=Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x);
@@ -2726,19 +2740,33 @@ function applyTheme(id){
       if(ox>=1 && oy<0) gap=-oy; else if(oy>=1 && ox<0) gap=-ox;
       return (gap!==null && gap>0.05 && gap<minAisleFt) ? gap : null;
     }
-    function valid(id){
-      const b=boxOf(id);
-      if(b.x<-1e-6||b.y<-1e-6||b.x+b.w>MAIN_W+1e-6||b.y+b.h>H+1e-6) return false;
-      for(const o of ids){ if(o===id) continue; const ob=boxOf(o);
-        if(overlapBad(b,ob)) return false;
-        if(aisleGap(b,ob)!==null) return false;   // never place an item into a too-narrow aisle
+    // A stack move is valid when every member stays in-bounds and no member
+    // overlaps or forms a too-narrow aisle with any item OUTSIDE its own stack.
+    // (Within-stack overlaps are the intentional bench stacking.)
+    function valid(anchor){
+      const members=stackMembers[anchor], mset=new Set(members);
+      for(const mid of members){
+        const b=boxOf(mid);
+        if(b.x<-1e-6||b.y<-1e-6||b.x+b.w>MAIN_W+1e-6||b.y+b.h>H+1e-6) return false;
+        for(const o of ids){ if(mset.has(o)) continue; const ob=boxOf(o);
+          if(rectsOverlap(b,ob)) return false;               // no overlap with anything outside the stack
+          if(aisleGap(b,ob)!==null) return false;            // no too-narrow aisle
+        }
       }
       return true;
     }
     function aislePenalty(){
       let pen=0; const bx=ids.map(boxOf);
       for(let i=0;i<bx.length;i++) for(let j=i+1;j<bx.length;j++){
-        const g=aisleGap(bx[i],bx[j]); if(g!==null) pen+=(minAisleFt-g);   // reward widening existing pinches
+        const g=aisleGap(bx[i],bx[j]); if(g!==null) pen+=(minAisleFt-g);     // reward widening existing pinches
+      }
+      return pen;
+    }
+    function overlapPenalty(){   // cross-stack overlaps only; drives the optimizer to separate any it starts with
+      let pen=0; const bx=ids.map(boxOf);
+      for(let i=0;i<bx.length;i++) for(let j=i+1;j<bx.length;j++){
+        if(sameStack(ids[i],ids[j])) continue;
+        if(rectsOverlap(bx[i],bx[j])) pen+=interArea(bx[i],bx[j]);
       }
       return pen;
     }
@@ -2757,52 +2785,58 @@ function applyTheme(id){
       }
       for(const g of groups) for(let i=0;i<g.length;i++) for(let j=i+1;j<g.length;j++)
         if(pos[g[i]]&&pos[g[j]]) e+=400*rectGap(boxOf(g[i]),boxOf(g[j]));
-      e+=300*aislePenalty();
+      e+=300*aislePenalty()+500*overlapPenalty();
       return e;
     }
     function partnerOf(id){
       for(const g of groups) if(g.includes(id)){ const o=g.filter(x=>x!==id&&pos[x]); if(o.length) return o[(Math.random()*o.length)|0]; }
       return null;
     }
-    function placeBeside(id,pid){
-      const P=pos[pid], I=pos[id];
-      const sides=[[P.x-I.w,P.y],[P.x+P.w,P.y],[P.x,P.y-I.h],[P.x,P.y+P.h]];
+    const snapStack=a=>stackMembers[a].map(m=>({m,x:pos[m].x,y:pos[m].y}));
+    const restore=snap=>snap.forEach(s=>{ pos[s.m].x=s.x; pos[s.m].y=s.y; });
+    const shiftStack=(a,dx,dy)=>stackMembers[a].forEach(m=>{ pos[m].x+=dx; pos[m].y+=dy; });
+    function placeBeside(a,pid){
+      const P=pos[pid], A=pos[a];
+      const sides=[[P.x-A.w,P.y],[P.x+P.w,P.y],[P.x,P.y-A.h],[P.x,P.y+P.h]];
       for(let s=sides.length-1;s>0;s--){ const r=(Math.random()*(s+1))|0; const t=sides[s]; sides[s]=sides[r]; sides[r]=t; }
-      const ox=I.x, oy=I.y;
+      const snap=snapStack(a);
       for(const [x,y] of sides){
-        I.x=clamp(Math.round(x*2)/2,0,MAIN_W-I.w); I.y=clamp(Math.round(y*2)/2,0,H-I.h);
-        if(valid(id)) return true;
+        const nx=clamp(Math.round(x*2)/2,0,MAIN_W-A.w), ny=clamp(Math.round(y*2)/2,0,H-A.h);
+        shiftStack(a, nx-A.x, ny-A.y);
+        if(valid(a)) return true;
+        restore(snap);
       }
-      I.x=ox; I.y=oy; return false;
+      return false;
     }
     if(movable.length){
       let cur=objective(), best=cur, bestPos=JSON.parse(JSON.stringify(pos));
       const ITERS=6000;
       for(let k=0;k<ITERS;k++){
         const T=6*(1-k/ITERS)+0.05;
-        const id=movable[(Math.random()*movable.length)|0];
-        const I=pos[id], old={x:I.x,y:I.y};
+        const a=movable[(Math.random()*movable.length)|0];
+        const snap=snapStack(a);
         let moved=false;
-        const pid=partnerOf(id);
-        if(pid && Math.random()<0.4) moved=placeBeside(id,pid);
+        const pid=partnerOf(a);
+        if(pid && Math.random()<0.4) moved=placeBeside(a,pid);
         if(!moved){
-          const step=Math.random()<0.5?1:5;
-          I.x=clamp(Math.round((old.x+(Math.random()*2-1)*step)*2)/2,0,MAIN_W-I.w);
-          I.y=clamp(Math.round((old.y+(Math.random()*2-1)*step)*2)/2,0,H-I.h);
+          const step=Math.random()<0.5?1:5, A=pos[a];
+          const nx=clamp(Math.round((A.x+(Math.random()*2-1)*step)*2)/2,0,MAIN_W-A.w);
+          const ny=clamp(Math.round((A.y+(Math.random()*2-1)*step)*2)/2,0,H-A.h);
+          shiftStack(a, nx-A.x, ny-A.y);
         }
-        if(!valid(id)){ I.x=old.x; I.y=old.y; continue; }
+        if(!valid(a)){ restore(snap); continue; }
         const cand=objective();
         if(cand<=cur || Math.random()<Math.exp((cur-cand)/T)){ cur=cand; if(cur<best){ best=cur; bestPos=JSON.parse(JSON.stringify(pos)); } }
-        else { I.x=old.x; I.y=old.y; }
+        else { restore(snap); }
       }
-      items.forEach(it=>{ if(bestPos[it.id]&&!locked.has(it.id)){ it.x=bestPos[it.id].x; it.y=bestPos[it.id].y; } });
+      items.forEach(it=>{ if(bestPos[it.id]){ it.x=bestPos[it.id].x; it.y=bestPos[it.id].y; } });
     }
     let adjUnmet=0;
     for(const g of groups) for(let i=0;i<g.length;i++) for(let j=i+1;j<g.length;j++){
       const a=items.find(x=>x.id===g[i]), b=items.find(x=>x.id===g[j]);
       if(a&&b && rectGap(itemBox(a,0),itemBox(b,0))>1) adjUnmet++;
     }
-    return {adjUnmet};
+    return {adjUnmet, stackCount};
   }
 
   // ===== FEATURE 2: LAYOUT CRITIC =====

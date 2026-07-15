@@ -45,9 +45,12 @@ lengths are capped server-side).
   walking paths. A dialog first lets you give items a shared **group letter**
   when they must sit together (a bioreactor and its ATF, a scale beside its
   tank) and tick **Keep fixed** for anything that can't move (existing islands
-  are pre-ticked). It runs a constrained simulated-annealing pass that never
-  overlaps equipment or leaves the room, shows the before→after walking
-  distance, and is fully undoable (Ctrl+Z). Works offline — no server needed.
+  are pre-ticked). Bench objects stacked on top of a larger item (≥50% covered)
+  are detected automatically and moved as one rigid unit. The constrained
+  simulated-annealing pass **never overlaps separate equipment** (only genuine
+  bench stacks overlap), keeps aisles at least the min-aisle width, and stays
+  in the room; it shows before→after walking distance + cleared aisles and is
+  fully undoable (Ctrl+Z). Works offline — no server needed.
 - **🔍 Review layout** — an AI read of the current layout (walking hot spots,
   clearance/egress problems, adjacency & clean-to-dirty flow) via the
   `api/critique.js` Vercel proxy. Uses the same `GROQ_API_KEY`; needs the
