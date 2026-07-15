@@ -2680,16 +2680,19 @@ function applyTheme(id){
   }
 
   function runOptimize(groups, locked, card){
+    const aisleBefore=computeClearanceIssues().filter(i=>i.type==='aisle').length;
     const before=currentWalkTotalFt();
     pushUndo();
     const res=optimizePositions(groups, locked);
     renderRoom();
     const after=currentWalkTotalFt();
+    const aisleAfter=computeClearanceIssues().filter(i=>i.type==='aisle').length;
     const delta=before>0 ? Math.round((before-after)/before*100) : 0;
     card.querySelector('.modal-body').innerHTML=`<div class="opt-result">
       <p>Walking distance / day:</p>
       <p><span class="big">${distLabel(before)}</span> &rarr; <span class="big">${distLabel(after)}</span></p>
       <p>${after<before ? `That's about <b>${delta}% shorter</b>.` : `No shorter arrangement found under these constraints — kept the optimizer's best.`}</p>
+      <p>Aisles narrower than ${lenTag(minAisleFt)} min: <b>${aisleBefore}</b> &rarr; <b>${aisleAfter}</b>${aisleAfter<aisleBefore?` (${aisleBefore-aisleAfter} cleared)`:''}</p>
       ${res.adjUnmet? `<p style="color:var(--danger)">⚠ Couldn't fully seat ${res.adjUnmet} "sit-together" pair(s) — placed as close as space allowed.</p>`:''}
       <p style="color:var(--slate);font-size:var(--fs-xs)">Press <b>Ctrl+Z</b> or Undo to revert. The optimizer minimises straight-line path length; the panel total is the obstacle-aware route, so the two differ slightly.</p>
     </div>`;
@@ -2711,11 +2714,33 @@ function applyTheme(id){
       if(ptInRect(c1x,c1y,b2)||ptInRect(c2x,c2y,b1)) return false;
       return true;
     }
+    // Aisle pinch between two boxes — same test as computeClearanceIssues:
+    // they face each other (>=1 ft projection overlap on one axis) with a gap
+    // narrower than the required min aisle. Touching (gap<=0.05) is fine, so
+    // items placed flush for adjacency don't count. Returns the gap, or null.
+    function aisleGap(a,b){
+      if(rectsOverlap(a,b)) return null;
+      const ox=Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x);
+      const oy=Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y);
+      let gap=null;
+      if(ox>=1 && oy<0) gap=-oy; else if(oy>=1 && ox<0) gap=-ox;
+      return (gap!==null && gap>0.05 && gap<minAisleFt) ? gap : null;
+    }
     function valid(id){
       const b=boxOf(id);
       if(b.x<-1e-6||b.y<-1e-6||b.x+b.w>MAIN_W+1e-6||b.y+b.h>H+1e-6) return false;
-      for(const o of ids){ if(o===id) continue; if(overlapBad(b,boxOf(o))) return false; }
+      for(const o of ids){ if(o===id) continue; const ob=boxOf(o);
+        if(overlapBad(b,ob)) return false;
+        if(aisleGap(b,ob)!==null) return false;   // never place an item into a too-narrow aisle
+      }
       return true;
+    }
+    function aislePenalty(){
+      let pen=0; const bx=ids.map(boxOf);
+      for(let i=0;i<bx.length;i++) for(let j=i+1;j<bx.length;j++){
+        const g=aisleGap(bx[i],bx[j]); if(g!==null) pen+=(minAisleFt-g);   // reward widening existing pinches
+      }
+      return pen;
     }
     function objective(){
       let e=0;
@@ -2732,6 +2757,7 @@ function applyTheme(id){
       }
       for(const g of groups) for(let i=0;i<g.length;i++) for(let j=i+1;j<g.length;j++)
         if(pos[g[i]]&&pos[g[j]]) e+=400*rectGap(boxOf(g[i]),boxOf(g[j]));
+      e+=300*aislePenalty();
       return e;
     }
     function partnerOf(id){
